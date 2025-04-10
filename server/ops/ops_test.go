@@ -3,8 +3,9 @@ package ops
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"highway/server/types"
 )
@@ -17,8 +18,9 @@ func TestInitConnection_Consumer_Basic(t *testing.T) {
 			"name":       "consumer-1",
 		},
 	}
+	decoder := json.NewDecoder(bytes.NewBufferString(""))
 
-	err := initConnection(msg, nil, nil, nil)
+	err := initConnection(msg, decoder, nil, nil)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -62,47 +64,13 @@ func TestInitConnection_Producer_Basic(t *testing.T) {
 		},
 	}
 
-	input := `{
-		"type": "push",
-		"message": {
-			"event_type": "test_event",
-			"message_payload": "payload"
-		}
-	}`
-	decoder := json.NewDecoder(bytes.NewBufferString(input))
-
+	decoder := json.NewDecoder(bytes.NewBufferString(""))
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
-
 	repo := NewMessageRepo()
 
 	err := initConnection(msg, decoder, encoder, repo)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	expected := map[string]string{
-		"response": "pushed message to queue test-queue",
-	}
-
-	result := make(map[string]string)
-	err = json.Unmarshal(output.Bytes(), &result)
-	if err != nil {
-		t.Errorf("Error unmarshalling output: %v", err)
-	}
-
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("Expected %v, got %v", expected, result)
-	}
-
-	expectedMessageModal := MessageModel{
-		Id:             1,
-		EventType:      "test_event",
-		MessagePayload: "payload",
-	}
-	if repo.messages[0] != expectedMessageModal {
-		t.Errorf("Expected %v, got %v", expectedMessageModal, repo.messages[0])
-	}
+	assert.NoError(t, err)
 }
 
 func TestInitConnection_Producer_Missing_QueueName(t *testing.T) {
@@ -156,4 +124,37 @@ func TestInitConnection_InvalidRole(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected error, got %v", err)
 	}
+}
+
+func TestProducer_Basic(t *testing.T) {
+	input := `{
+		"type": "push",
+		"message": {
+			"event_type": "test_event",
+			"message_payload": "payload"
+		}
+	}`
+	decoder := json.NewDecoder(bytes.NewBufferString(input))
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	repo := NewMessageRepo()
+
+	err := handlerProducerConnection("test-queue", decoder, encoder, repo)
+	assert.NoError(t, err)
+
+	expectedTcpResponse := map[string]string{
+		"response": "pushed message to queue test-queue",
+	}
+	expectedMessageModal := MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "payload",
+	}
+
+	result := make(map[string]string)
+	err = json.Unmarshal(output.Bytes(), &result)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedTcpResponse, result)
+	assert.Equal(t, expectedMessageModal, repo.messages[0])
 }

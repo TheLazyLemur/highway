@@ -155,8 +155,17 @@ func handlerProducerConnection(
 func handlerConsumerConnection(
 	queueName string,
 	consumerName string,
-	dec *json.Decoder,
-	enc *json.Encoder,
+	connReader *json.Decoder,
+	connWriter *json.Encoder,
 ) error {
+	var msg types.Message
+	err := connReader.Decode(&msg)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+
 	return nil
 }
