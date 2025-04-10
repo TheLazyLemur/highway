@@ -24,7 +24,8 @@ func TestInitConnection_Consumer_Basic(t *testing.T) {
 	msg := createTestInitMessage("consumer", "test-queue", "consumer-1")
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 
-	err := initConnection(msg, decoder, nil, nil)
+	svc := NewService(nil)
+	err := svc.initConnection(msg, decoder, nil)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -55,7 +56,8 @@ func TestInitConnection_Consumer_InvalidInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			msg := createTestInitMessage("consumer", tt.queueName, tt.nameField)
 
-			err := initConnection(msg, nil, nil, nil)
+			svc := NewService(nil)
+			err := svc.initConnection(msg, nil, nil)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error, got nil")
@@ -75,9 +77,9 @@ func TestInitConnection_Producer_Basic(t *testing.T) {
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
-	repo := NewMessageRepo()
 
-	err := initConnection(msg, decoder, encoder, repo)
+	svc := NewService(nil)
+	err := svc.initConnection(msg, decoder, encoder)
 	assert.NoError(t, err)
 }
 
@@ -127,7 +129,8 @@ func TestInitConnection(t *testing.T) {
 			msg := createTestInitMessage(tt.role, tt.queueName, tt.nameField)
 			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
-			err := initConnection(msg, decoder, nil, nil)
+			svc := NewService(nil)
+			err := svc.initConnection(msg, decoder, nil)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error, got nil")
@@ -155,8 +158,9 @@ func TestProducer_Basic(t *testing.T) {
 	encoder := json.NewEncoder(&output)
 
 	repo := NewMessageRepo()
+	svc := NewService(repo)
 
-	err := handlerProducerConnection("test-queue", decoder, encoder, repo)
+	err := svc.handlerProducerConnection("test-queue", decoder, encoder)
 	assert.NoError(t, err)
 
 	var result map[string]string

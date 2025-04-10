@@ -15,6 +15,7 @@ func main() {
 	}
 
 	repo := ops.NewMessageRepo()
+	service := ops.NewService(repo)
 
 	for {
 		conn, err := ln.Accept()
@@ -22,6 +23,6 @@ func main() {
 			slog.Info("Error accepting connection", "error", err.Error())
 		}
 
-		go ops.HandleNewConnection(conn, repo)
+		go service.HandleNewConnection(conn)
 	}
 }

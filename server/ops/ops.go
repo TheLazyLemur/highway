@@ -23,7 +23,17 @@ func MapToStruct[T any](data map[string]any) (T, error) {
 	return result, err
 }
 
-func HandleNewConnection(conn net.Conn, repo *MessageRepo) {
+type Service struct {
+	repo *MessageRepo
+}
+
+func NewService(repo *MessageRepo) *Service {
+	return &Service{
+		repo: repo,
+	}
+}
+
+func (s *Service) HandleNewConnection(conn net.Conn) {
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 	defer conn.Close()
@@ -39,7 +49,7 @@ func HandleNewConnection(conn net.Conn, repo *MessageRepo) {
 
 	switch msg.Type {
 	case "init":
-		if err := initConnection(msg, decoder, encoder, repo); err != nil {
+		if err := s.initConnection(msg, decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) {
 				return
 			}
@@ -53,11 +63,10 @@ func HandleNewConnection(conn net.Conn, repo *MessageRepo) {
 	}
 }
 
-func initConnection(
+func (s *Service) initConnection(
 	msg types.Message,
 	decoder *json.Decoder,
 	encoder *json.Encoder,
-	repo *MessageRepo,
 ) error {
 	rawMessage, ok := msg.Message.(map[string]any)
 	if !ok {
@@ -82,7 +91,7 @@ func initConnection(
 			return errors.New("queue name is required")
 		}
 
-		if err := handlerProducerConnection(initMsg.QueueName, decoder, encoder, repo); err != nil {
+		if err := s.handlerProducerConnection(initMsg.QueueName, decoder, encoder); err != nil {
 			slog.Error("Error in handlerProducer", "error", err.Error())
 			return err
 		}
@@ -96,7 +105,7 @@ func initConnection(
 			return errors.New("queue name is required")
 		}
 
-		if err := handlerConsumerConnection(initMsg.QueueName, initMsg.Name, decoder, encoder); err != nil {
+		if err := s.handlerConsumerConnection(initMsg.QueueName, initMsg.Name, decoder, encoder); err != nil {
 			slog.Error("Error in handlerConsumer", "error", err.Error())
 			return err
 		}
@@ -108,11 +117,10 @@ func initConnection(
 	return nil
 }
 
-func handlerProducerConnection(
+func (s *Service) handlerProducerConnection(
 	queueName string,
 	connReader *json.Decoder,
 	connWriter *json.Encoder,
-	repo *MessageRepo,
 ) error {
 	for {
 		var msg types.Message
@@ -132,9 +140,9 @@ func handlerProducerConnection(
 			}
 			slog.Info("Received push message", "payload", pushMessage.MessagePayload)
 
-			repo.AddMessage(
+			s.repo.AddMessage(
 				MessageModel{
-					Id:             repo.NextID(),
+					Id:             s.repo.NextID(),
 					EventType:      pushMessage.EventType,
 					MessagePayload: pushMessage.MessagePayload,
 				},
@@ -152,7 +160,7 @@ func handlerProducerConnection(
 	}
 }
 
-func handlerConsumerConnection(
+func (s *Service) handlerConsumerConnection(
 	queueName string,
 	consumerName string,
 	connReader *json.Decoder,
