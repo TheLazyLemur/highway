@@ -10,14 +10,18 @@ import (
 	"highway/server/types"
 )
 
-func TestInitConnection_Consumer_Basic(t *testing.T) {
-	msg := types.Message{
+func createTestInitMessage(role, queueName, name string) types.Message {
+	return types.Message{
 		Message: map[string]any{
-			"role":       "consumer",
-			"queue_name": "test-queue",
-			"name":       "consumer-1",
+			"role":       role,
+			"queue_name": queueName,
+			"name":       name,
 		},
 	}
+}
+
+func TestInitConnection_Consumer_Basic(t *testing.T) {
+	msg := createTestInitMessage("consumer", "test-queue", "consumer-1")
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 
 	err := initConnection(msg, decoder, nil, nil)
@@ -26,43 +30,47 @@ func TestInitConnection_Consumer_Basic(t *testing.T) {
 	}
 }
 
-func TestInitConnection_Consumer_MissingName(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role":       "consumer",
-			"queue_name": "test-queue",
-			"name":       "",
+func TestInitConnection_Consumer_InvalidInputs(t *testing.T) {
+	tests := []struct {
+		name        string
+		queueName   string
+		nameField   string
+		expectError bool
+	}{
+		{
+			name:        "Missing Name",
+			queueName:   "test-queue",
+			nameField:   "",
+			expectError: true,
+		},
+		{
+			name:        "Missing QueueName",
+			queueName:   "",
+			nameField:   "test-name",
+			expectError: true,
 		},
 	}
 
-	err := initConnection(msg, nil, nil, nil)
-	if err == nil {
-		t.Errorf("Expected error, got %v", err)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := createTestInitMessage("consumer", tt.queueName, tt.nameField)
 
-func TestInitConnection_Consumer_MissingQueueName(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role":       "consumer",
-			"queue_name": "",
-			"name":       "test-name",
-		},
-	}
-
-	err := initConnection(msg, nil, nil, nil)
-	if err == nil {
-		t.Errorf("Expected error, got %v", err)
+			err := initConnection(msg, nil, nil, nil)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+			}
+		})
 	}
 }
 
 func TestInitConnection_Producer_Basic(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role":       "producer",
-			"queue_name": "test-queue",
-		},
-	}
+	msg := createTestInitMessage("producer", "test-queue", "")
 
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 	var output bytes.Buffer
@@ -73,56 +81,63 @@ func TestInitConnection_Producer_Basic(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInitConnection_Producer_Missing_QueueName(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role": "producer",
+func TestInitConnection(t *testing.T) {
+	tests := []struct {
+		name        string
+		role        string
+		queueName   string
+		nameField   string
+		input       string
+		expectError bool
+	}{
+		{
+			name:      "Producer Missing QueueName",
+			role:      "producer",
+			queueName: "",
+			nameField: "",
+			input: `{
+				"type": "push",
+				"message": {
+					"event_type": "test_event",
+					"message_payload": "test_payload"
+				}
+			}`,
+			expectError: true,
+		},
+		{
+			name:        "Producer Invalid Action",
+			role:        "producer",
+			queueName:   "test-queue",
+			nameField:   "",
+			input:       `{"type": "invalid"}`,
+			expectError: true,
+		},
+		{
+			name:        "Invalid Role",
+			role:        "invalid",
+			queueName:   "test-queue",
+			nameField:   "",
+			input:       "",
+			expectError: true,
 		},
 	}
 
-	input := `{
-		"type": "push",
-		"message": {
-			"event_type": "test_event",
-			"message_payload": "test_payload"
-		}
-	}`
-	decoder := json.NewDecoder(bytes.NewBufferString(input))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := createTestInitMessage(tt.role, tt.queueName, tt.nameField)
+			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
-	err := initConnection(msg, decoder, nil, nil)
-	if err == nil {
-		t.Errorf("Expected error, got %v", err)
-	}
-}
-
-func TestInitConnection_Producer_InvalidAction(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role":       "producer",
-			"queue_name": "test-queue",
-		},
-	}
-
-	input := `{"type": "invalid"}`
-	decoder := json.NewDecoder(bytes.NewBufferString(input))
-
-	err := initConnection(msg, decoder, nil, nil)
-	if err == nil {
-		t.Errorf("Expected error, got %v", err)
-	}
-}
-
-func TestInitConnection_InvalidRole(t *testing.T) {
-	msg := types.Message{
-		Message: map[string]any{
-			"role":       "invalid",
-			"queue_name": "test-queue",
-		},
-	}
-
-	err := initConnection(msg, nil, nil, nil)
-	if err == nil {
-		t.Errorf("Expected error, got %v", err)
+			err := initConnection(msg, decoder, nil, nil)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+			}
+		})
 	}
 }
 
@@ -135,26 +150,26 @@ func TestProducer_Basic(t *testing.T) {
 		}
 	}`
 	decoder := json.NewDecoder(bytes.NewBufferString(input))
+
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
+
 	repo := NewMessageRepo()
 
 	err := handlerProducerConnection("test-queue", decoder, encoder, repo)
 	assert.NoError(t, err)
 
-	expectedTcpResponse := map[string]string{
-		"response": "pushed message to queue test-queue",
-	}
-	expectedMessageModal := MessageModel{
-		Id:             1,
-		EventType:      "test_event",
-		MessagePayload: "payload",
-	}
-
-	result := make(map[string]string)
+	var result map[string]string
 	err = json.Unmarshal(output.Bytes(), &result)
 	assert.NoError(t, err)
 
-	assert.Equal(t, expectedTcpResponse, result)
-	assert.Equal(t, expectedMessageModal, repo.messages[0])
+	assert.Equal(t, map[string]string{
+		"response": "pushed message to queue test-queue",
+	}, result)
+
+	assert.Equal(t, MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "payload",
+	}, repo.messages[0])
 }
