@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"highway/server/ops"
+	"highway/server/repo"
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	repo := ops.NewMessageRepo()
+	repo := repo.NewMessageRepo()
 	service := ops.NewService(repo)
 
 	for {

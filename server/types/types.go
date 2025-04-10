@@ -17,3 +17,8 @@ type PushMessage struct {
 	EventType      string `json:"event_type"`
 	MessagePayload string `json:"message_payload"`
 }
+
+type ConsumeMessage struct {
+	QueueName    string `json:"queue_name"`
+	ConsumerName string `json:"consumer_name"`
+}

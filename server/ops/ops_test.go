@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"highway/server/repo"
 	"highway/server/types"
 )
 
@@ -157,8 +158,8 @@ func TestProducer_Basic(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	repo := NewMessageRepo()
-	svc := NewService(repo)
+	r := repo.NewMessageRepo()
+	svc := NewService(r)
 
 	err := svc.handlerProducerConnection("test-queue", decoder, encoder)
 	assert.NoError(t, err)
@@ -171,9 +172,42 @@ func TestProducer_Basic(t *testing.T) {
 		"response": "pushed message to queue test-queue",
 	}, result)
 
-	assert.Equal(t, MessageModel{
+	assert.Equal(t, repo.MessageModel{
 		Id:             1,
 		EventType:      "test_event",
 		MessagePayload: "payload",
-	}, repo.messages[0])
+	}, r.GetMessage("test-queue", "test-consumer"))
+}
+
+func TestConsumer_Basic(t *testing.T) {
+	r := repo.NewMessageRepo()
+	r.AddMessage("test_queue", repo.MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "my_payload",
+	})
+
+	input := `{
+		"type": "consume",
+		"message": {
+			"queue_name": "test_queue",
+			"consumer_name": "test_consumer"
+		}
+	}`
+	decoder := json.NewDecoder(bytes.NewBufferString(input))
+
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+
+	svc := NewService(r)
+	svc.handlerConsumerConnection(decoder, encoder)
+
+	var result map[string]any
+	err := json.Unmarshal(output.Bytes(), &result)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"Id":             float64(1),
+		"EventType":      "test_event",
+		"MessagePayload": "my_payload",
+	}, result)
 }

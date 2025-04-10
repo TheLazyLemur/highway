@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 
+	"highway/server/repo"
 	"highway/server/types"
 )
 
@@ -24,10 +25,10 @@ func MapToStruct[T any](data map[string]any) (T, error) {
 }
 
 type Service struct {
-	repo *MessageRepo
+	repo *repo.MessageRepo
 }
 
-func NewService(repo *MessageRepo) *Service {
+func NewService(repo *repo.MessageRepo) *Service {
 	return &Service{
 		repo: repo,
 	}
@@ -105,7 +106,7 @@ func (s *Service) initConnection(
 			return errors.New("queue name is required")
 		}
 
-		if err := s.handlerConsumerConnection(initMsg.QueueName, initMsg.Name, decoder, encoder); err != nil {
+		if err := s.handlerConsumerConnection(decoder, encoder); err != nil {
 			slog.Error("Error in handlerConsumer", "error", err.Error())
 			return err
 		}
@@ -141,7 +142,8 @@ func (s *Service) handlerProducerConnection(
 			slog.Info("Received push message", "payload", pushMessage.MessagePayload)
 
 			s.repo.AddMessage(
-				MessageModel{
+				queueName,
+				repo.MessageModel{
 					Id:             s.repo.NextID(),
 					EventType:      pushMessage.EventType,
 					MessagePayload: pushMessage.MessagePayload,
@@ -161,8 +163,6 @@ func (s *Service) handlerProducerConnection(
 }
 
 func (s *Service) handlerConsumerConnection(
-	queueName string,
-	consumerName string,
 	connReader *json.Decoder,
 	connWriter *json.Encoder,
 ) error {
@@ -173,6 +173,16 @@ func (s *Service) handlerConsumerConnection(
 			return nil
 		}
 		return err
+	}
+
+	switch msg.Type {
+	case "consume":
+		consumeMessage, err := MapToStruct[types.ConsumeMessage](msg.Message.(map[string]any))
+		if err != nil {
+			return err
+		}
+		msg := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
+		connWriter.Encode(msg)
 	}
 
 	return nil
