@@ -12,6 +12,7 @@ type MessageRepo struct {
 	mutex  sync.RWMutex
 	queues map[string][]MessageModel
 	lastID int64
+	cursor int64
 }
 
 func NewMessageRepo() *MessageRepo {
@@ -45,7 +46,13 @@ func (m *MessageRepo) GetMessage(queueName, consumerName string) MessageModel {
 		m.queues[queueName] = []MessageModel{}
 	}
 
-	msg := m.queues[queueName][0]
-
+	var msg MessageModel
+	for _, mm := range m.queues[queueName] {
+		if mm.Id > m.cursor {
+			// TODO: Implement cursor per consumer
+			msg = mm
+			m.cursor++
+		}
+	}
 	return msg
 }

@@ -3,6 +3,7 @@ package ops
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ func createTestInitMessage(role, queueName, name string) types.Message {
 	}
 }
 
-func TestInitConnection_Consumer_Basic(t *testing.T) {
+func TestInitConnectionConsumerBasic(t *testing.T) {
 	msg := createTestInitMessage("consumer", "test-queue", "consumer-1")
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 
@@ -32,7 +33,7 @@ func TestInitConnection_Consumer_Basic(t *testing.T) {
 	}
 }
 
-func TestInitConnection_Consumer_InvalidInputs(t *testing.T) {
+func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 	tests := []struct {
 		name        string
 		queueName   string
@@ -40,13 +41,13 @@ func TestInitConnection_Consumer_InvalidInputs(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "Missing Name",
+			name:        "MissingConsumerName",
 			queueName:   "test-queue",
 			nameField:   "",
 			expectError: true,
 		},
 		{
-			name:        "Missing QueueName",
+			name:        "MissingQueueName",
 			queueName:   "",
 			nameField:   "test-name",
 			expectError: true,
@@ -72,7 +73,7 @@ func TestInitConnection_Consumer_InvalidInputs(t *testing.T) {
 	}
 }
 
-func TestInitConnection_Producer_Basic(t *testing.T) {
+func TestInitConnectionProducerBasic(t *testing.T) {
 	msg := createTestInitMessage("producer", "test-queue", "")
 
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
@@ -84,7 +85,7 @@ func TestInitConnection_Producer_Basic(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInitConnection(t *testing.T) {
+func TestInitConnectionVariousScenarios(t *testing.T) {
 	tests := []struct {
 		name        string
 		role        string
@@ -94,7 +95,7 @@ func TestInitConnection(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:      "Producer Missing QueueName",
+			name:      "ProducerMissingQueueName",
 			role:      "producer",
 			queueName: "",
 			nameField: "",
@@ -108,7 +109,7 @@ func TestInitConnection(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "Producer Invalid Action",
+			name:        "ProducerInvalidAction",
 			role:        "producer",
 			queueName:   "test-queue",
 			nameField:   "",
@@ -116,7 +117,7 @@ func TestInitConnection(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "Invalid Role",
+			name:        "InvalidRole",
 			role:        "invalid",
 			queueName:   "test-queue",
 			nameField:   "",
@@ -145,7 +146,7 @@ func TestInitConnection(t *testing.T) {
 	}
 }
 
-func TestProducer_Basic(t *testing.T) {
+func TestProducerPushMessage(t *testing.T) {
 	input := `{
 		"type": "push",
 		"message": {
@@ -179,7 +180,7 @@ func TestProducer_Basic(t *testing.T) {
 	}, r.GetMessage("test-queue", "test-consumer"))
 }
 
-func TestConsumer_Basic(t *testing.T) {
+func TestConsumerRetrieveMessage(t *testing.T) {
 	r := repo.NewMessageRepo()
 	r.AddMessage("test_queue", repo.MessageModel{
 		Id:             1,
@@ -210,4 +211,72 @@ func TestConsumer_Basic(t *testing.T) {
 		"EventType":      "test_event",
 		"MessagePayload": "my_payload",
 	}, result)
+}
+
+func TestConsumerNoMessagesAvailable(t *testing.T) {
+	r := repo.NewMessageRepo()
+	input := `{
+		"type": "consume",
+		"message": {
+			"queue_name": "test_queue",
+			"consumer_name": "test_consumer"
+		}
+	}`
+	decoder := json.NewDecoder(bytes.NewBufferString(input))
+
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+
+	svc := NewService(r)
+	svc.handlerConsumerConnection(decoder, encoder)
+
+	var result map[string]any
+	err := json.Unmarshal(output.Bytes(), &result)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"Id":             float64(0),
+		"EventType":      "",
+		"MessagePayload": "",
+	}, result)
+}
+
+func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
+	r := repo.NewMessageRepo()
+	r.AddMessage("test_queue", repo.MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "my_payload",
+	})
+
+	input := `
+{"type":"consume","message":{"queue_name":"test_queue","consumer_name":"test_consumer"}}
+{"type":"consume","message":{"queue_name":"test_queue","consumer_name":"test_consumer"}}
+`
+	decoder := json.NewDecoder(strings.NewReader(input))
+
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+
+	svc := NewService(r)
+	svc.handlerConsumerConnection(decoder, encoder)
+
+	dec := json.NewDecoder(&output)
+
+	var result1, result2 map[string]any
+
+	err := dec.Decode(&result1)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"Id":             float64(1),
+		"EventType":      "test_event",
+		"MessagePayload": "my_payload",
+	}, result1)
+
+	err = dec.Decode(&result2)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"Id":             float64(0),
+		"EventType":      "",
+		"MessagePayload": "",
+	}, result2)
 }

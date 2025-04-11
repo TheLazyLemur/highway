@@ -6,10 +6,8 @@ type Message struct {
 }
 
 type InitMessage struct {
-	Role string `json:"role"`
-	// Consumers must have a name
-	Name string `json:"name"`
-	// Both Consumers and Producers must have a queue name
+	Role      string `json:"role"`
+	Name      string `json:"name"`
 	QueueName string `json:"queue_name"`
 }
 

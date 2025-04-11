@@ -80,7 +80,7 @@ func (s *Service) initConnection(
 		slog.Error(
 			"Error casting to InitMessage",
 			"error",
-			"message is not of type InitMessage",
+			err.Error(),
 		)
 		return err
 	}
@@ -166,24 +166,27 @@ func (s *Service) handlerConsumerConnection(
 	connReader *json.Decoder,
 	connWriter *json.Encoder,
 ) error {
-	var msg types.Message
-	err := connReader.Decode(&msg)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return err
-	}
-
-	switch msg.Type {
-	case "consume":
-		consumeMessage, err := MapToStruct[types.ConsumeMessage](msg.Message.(map[string]any))
+	for {
+		var msg types.Message
+		err := connReader.Decode(&msg)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
 			return err
 		}
-		msg := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
-		connWriter.Encode(msg)
-	}
 
-	return nil
+		switch msg.Type {
+		case "consume":
+			consumeMessage, err := MapToStruct[types.ConsumeMessage](msg.Message.(map[string]any))
+			if err != nil {
+				return err
+			}
+			msg := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
+			err = connWriter.Encode(msg)
+			if err != nil {
+				return err
+			}
+		}
+	}
 }
