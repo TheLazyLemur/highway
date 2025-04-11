@@ -17,13 +17,10 @@ func main() {
 	{
 		"type": "init",
 		"message": {
-			"role": "producer",
-			"queue_name": "test_queue"
+			"role": "producer"
 		}
 	}
 	`
-
-	conn.Write([]byte(pl))
 
 	pl2 := `
 	{
@@ -31,11 +28,12 @@ func main() {
 		"message": {
 			"event_type": "test_event",
 			"queue_name": "test-queue",
-			"message_payload": "payload"
+			"message_payload": "This is a payload"
 		}
 	}
 	`
 
+	conn.Write([]byte(pl))
 	conn.Write([]byte(pl2))
 
 	decoder := json.NewDecoder(conn)

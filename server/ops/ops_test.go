@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -38,36 +37,55 @@ func TestInitConnectionConsumerBasic(t *testing.T) {
 func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 	tests := []struct {
 		name        string
-		queueName   string
-		nameField   string
+		input       string
 		expectError error
 	}{
 		{
-			name:        "MissingConsumerName",
-			queueName:   "test-queue",
-			nameField:   "",
+			name: "MissingConsumerName",
+			input: `
+			{
+				"type": "consume",
+				"message": {
+					"queue_name": "test-queue",
+					"consumer_name": ""
+				}
+			}
+			`,
 			expectError: ErrorConsumerNameRequired,
 		},
 		{
-			name:        "MissingQueueName",
-			queueName:   "",
-			nameField:   "test-name",
+			name: "MissingQueueName",
+			input: `
+			{
+				"type": "consume",
+				"message": {
+					"queue_name": "",
+					"consumer_name": "test-name"
+				}
+			}
+			`,
 			expectError: ErrorQueueNameRequired,
+		},
+		{
+			name: "InvalidAction",
+			input: `
+			{
+				"type": "invalid",
+				"message": {
+					"queue_name": "test-name",
+					"consumer_name": "test-name"
+				}
+			}
+			`,
+			expectError: ErrorInvalidAction,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := createTestInitMessage("consumer", tt.queueName, tt.nameField)
+			msg := createTestInitMessage("consumer", "", "")
 
-			input := fmt.Sprintf(`{
-	"type": "consume",
-	"message": {
-		"queue_name": "%s",
-		"consumer_name": "%s"
-	}
-}`, tt.queueName, tt.nameField)
-			decoder := json.NewDecoder(bytes.NewBufferString(input))
+			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
 			svc := NewService(nil)
 			err := svc.initConnection(msg, decoder, nil)
@@ -92,16 +110,12 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 	tests := []struct {
 		name        string
 		role        types.Role
-		queueName   string
-		nameField   string
 		input       string
 		expectError error
 	}{
 		{
-			name:      "ProducerMissingQueueName",
-			role:      "producer",
-			queueName: "",
-			nameField: "",
+			name: "ProducerMissingQueueName",
+			role: "producer",
 			input: `{
 				"type": "push",
 				"message": {
@@ -114,16 +128,12 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 		{
 			name:        "ProducerInvalidAction",
 			role:        "producer",
-			queueName:   "test-queue",
-			nameField:   "",
 			input:       `{"type": "invalid"}`,
 			expectError: ErrorInvalidAction,
 		},
 		{
 			name:        "InvalidRole",
 			role:        "invalid",
-			queueName:   "test-queue",
-			nameField:   "",
 			input:       "",
 			expectError: ErrorInvalidRole,
 		},
@@ -131,7 +141,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := createTestInitMessage(tt.role, tt.queueName, tt.nameField)
+			msg := createTestInitMessage(tt.role, "", "")
 			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
 			svc := NewService(nil)
@@ -166,7 +176,7 @@ func TestProducerPushMessage(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, map[string]string{
-		"response": "pushed message to queue test-queue",
+		"response": "pushed message to queue test-queue with type test_event with payload payload",
 	}, result)
 
 	msg, err := r.GetMessage("test-queue", "test-consumer")

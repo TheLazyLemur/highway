@@ -135,16 +135,23 @@ func (s *Service) handleProducerMessages(
 				return ErrorQueueNameRequired
 			}
 
-			s.repo.AddMessage(
+			if err := s.repo.AddMessage(
 				pushMessage.QueueName,
 				repo.MessageModel{
 					EventType:      pushMessage.EventType,
 					MessagePayload: pushMessage.MessagePayload,
 				},
-			)
+			); err != nil {
+				return err
+			}
 
 			resp := map[string]any{
-				"response": fmt.Sprintf("pushed message to queue %s", pushMessage.QueueName),
+				"response": fmt.Sprintf(
+					"pushed message to queue %s with type %s with payload %s",
+					pushMessage.QueueName,
+					pushMessage.EventType,
+					pushMessage.MessagePayload,
+				),
 			}
 			if err := connWriter.Encode(resp); err != nil {
 				return err
