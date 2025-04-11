@@ -37,7 +37,12 @@ func NewService(repo *repo.MessageRepo) *Service {
 func (s *Service) HandleNewConnection(conn net.Conn) {
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
-	defer conn.Close()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Recovered from panic in connection", "error", r)
+		}
+		conn.Close()
+	}()
 
 	var msg types.Message
 	err := decoder.Decode(&msg)
