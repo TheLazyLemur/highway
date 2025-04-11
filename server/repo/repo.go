@@ -59,9 +59,10 @@ func (m *MessageRepo) GetMessage(queueName, consumerName string) (MessageModel, 
 	for _, mm := range m.queues[queueName] {
 		if mm.Id > m.cursor {
 			// TODO: Implement cursor per consumer
+			// Return the message and increment the cursor only once
 			msg = mm
-			m.cursor++
-			break
+			m.cursor = mm.Id // Set cursor to the current message's ID
+			break            // Exit loop after returning the first message
 		}
 	}
 	return msg, nil
