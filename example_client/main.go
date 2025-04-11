@@ -34,14 +34,15 @@ func main() {
 	`
 
 	conn.Write([]byte(pl))
-	conn.Write([]byte(pl2))
+	for {
+		conn.Write([]byte(pl2))
+		decoder := json.NewDecoder(conn)
+		var obj map[string]any
+		err = decoder.Decode(&obj)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	decoder := json.NewDecoder(conn)
-	var obj map[string]any
-	err = decoder.Decode(&obj)
-	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Received from server:", obj)
 	}
-
-	fmt.Println("Received from server:", obj)
 }

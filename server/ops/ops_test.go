@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -152,14 +153,25 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 }
 
 func TestProducerPushMessage(t *testing.T) {
-	input := `{
+	input := `
+	{
 		"type": "push",
 		"message": {
 			"event_type": "test_event",
 			"queue_name": "test-queue",
 			"message_payload": "payload"
 		}
-	}`
+	}
+	{
+		"type": "push",
+		"message": {
+			"event_type": "test_event",
+			"queue_name": "test-queue",
+			"message_payload": "payload"
+		}
+	}
+	`
+
 	decoder := json.NewDecoder(bytes.NewBufferString(input))
 
 	var output bytes.Buffer
@@ -171,18 +183,34 @@ func TestProducerPushMessage(t *testing.T) {
 	err := svc.handleProducerMessages(decoder, encoder)
 	assert.NoError(t, err)
 
-	var result map[string]string
-	err = json.Unmarshal(output.Bytes(), &result)
-	assert.NoError(t, err)
+	for range 2 {
+		testDec := json.NewDecoder(&output)
+		var result map[string]string
+		err := testDec.Decode(&result)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+		}
 
-	assert.Equal(t, map[string]string{
-		"response": "pushed message to queue test-queue with type test_event with payload payload",
-	}, result)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"response": "pushed message to queue test-queue with type test_event with payload payload",
+		}, result)
+	}
 
 	msg, err := r.GetMessage("test-queue", "test-consumer")
 	assert.NoError(t, err)
 	assert.Equal(t, repo.MessageModel{
 		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "payload",
+	}, msg)
+
+	msg, err = r.GetMessage("test-queue", "test-consumer")
+	assert.NoError(t, err)
+	assert.Equal(t, repo.MessageModel{
+		Id:             2,
 		EventType:      "test_event",
 		MessagePayload: "payload",
 	}, msg)

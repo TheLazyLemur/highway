@@ -25,6 +25,7 @@ func NewMessageRepo() *MessageRepo {
 		mutex:  sync.RWMutex{},
 		queues: make(map[string][]MessageModel),
 		lastID: 0,
+		cursor: 0,
 	}
 }
 
@@ -60,6 +61,7 @@ func (m *MessageRepo) GetMessage(queueName, consumerName string) (MessageModel, 
 			// TODO: Implement cursor per consumer
 			msg = mm
 			m.cursor++
+			break
 		}
 	}
 	return msg, nil
