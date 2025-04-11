@@ -52,7 +52,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 	}
 
 	switch msg.Type {
-	case "init":
+	case Init:
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) {
 				return

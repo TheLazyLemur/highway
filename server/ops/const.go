@@ -12,6 +12,7 @@ const (
 )
 
 const (
+	Init    types.Action = "init"
 	Push    types.Action = "push"
 	Consume types.Action = "consume"
 )

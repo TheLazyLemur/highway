@@ -3,6 +3,7 @@ package types
 type (
 	Role   string
 	Action string
+	Type   string
 )
 
 type Message struct {
