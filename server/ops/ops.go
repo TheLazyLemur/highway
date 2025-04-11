@@ -16,12 +16,15 @@ func MapToStruct[T any](data map[string]any) (T, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		var zero T
-		return zero, err
+		return zero, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
 	var result T
 	err = json.Unmarshal(b, &result)
-	return result, err
+	if err != nil {
+		return result, fmt.Errorf("failed to unmarshal data into %T: %w", result, err)
+	}
+	return result, nil
 }
 
 type Service struct {
