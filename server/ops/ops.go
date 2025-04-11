@@ -46,8 +46,6 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 		return
 	}
 
-	slog.Info("Received message", "msg", msg)
-
 	switch msg.Type {
 	case "init":
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
@@ -86,27 +84,13 @@ func (s *Service) initConnection(
 	}
 
 	switch initMsg.Role {
-	case "producer":
-		if initMsg.QueueName == "" {
-			slog.Error("Queue name is required")
-			return errors.New("queue name is required")
-		}
-
-		if err := s.handlerProducerConnection(initMsg.QueueName, decoder, encoder); err != nil {
+	case Producer:
+		if err := s.handleProducerMessages(decoder, encoder); err != nil {
 			slog.Error("Error in handlerProducer", "error", err.Error())
 			return err
 		}
-	case "consumer":
-		if initMsg.Name == "" {
-			slog.Error("Consumer name is required")
-			return errors.New("consumer name is required")
-		}
-		if initMsg.QueueName == "" {
-			slog.Error("Queue name is required")
-			return errors.New("queue name is required")
-		}
-
-		if err := s.handlerConsumerConnection(decoder, encoder); err != nil {
+	case Consumer:
+		if err := s.handleConsumerMessages(decoder, encoder); err != nil {
 			slog.Error("Error in handlerConsumer", "error", err.Error())
 			return err
 		}
@@ -118,8 +102,7 @@ func (s *Service) initConnection(
 	return nil
 }
 
-func (s *Service) handlerProducerConnection(
-	queueName string,
+func (s *Service) handleProducerMessages(
 	connReader *json.Decoder,
 	connWriter *json.Encoder,
 ) error {
@@ -134,24 +117,25 @@ func (s *Service) handlerProducerConnection(
 		}
 
 		switch msg.Type {
-		case "push":
+		case Push:
 			pushMessage, err := MapToStruct[types.PushMessage](msg.Message.(map[string]any))
 			if err != nil {
 				return err
 			}
-			slog.Info("Received push message", "payload", pushMessage.MessagePayload)
+			if pushMessage.QueueName == "" {
+				return errors.New("queue name is required")
+			}
 
 			s.repo.AddMessage(
-				queueName,
+				pushMessage.QueueName,
 				repo.MessageModel{
-					Id:             s.repo.NextID(),
 					EventType:      pushMessage.EventType,
 					MessagePayload: pushMessage.MessagePayload,
 				},
 			)
 
 			resp := map[string]any{
-				"response": fmt.Sprintf("pushed message to queue %s", queueName),
+				"response": fmt.Sprintf("pushed message to queue %s", pushMessage.QueueName),
 			}
 			if err := connWriter.Encode(resp); err != nil {
 				return err
@@ -162,7 +146,7 @@ func (s *Service) handlerProducerConnection(
 	}
 }
 
-func (s *Service) handlerConsumerConnection(
+func (s *Service) handleConsumerMessages(
 	connReader *json.Decoder,
 	connWriter *json.Encoder,
 ) error {
@@ -177,12 +161,23 @@ func (s *Service) handlerConsumerConnection(
 		}
 
 		switch msg.Type {
-		case "consume":
+		case Consume:
 			consumeMessage, err := MapToStruct[types.ConsumeMessage](msg.Message.(map[string]any))
 			if err != nil {
 				return err
 			}
-			msg := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
+			if consumeMessage.ConsumerName == "" {
+				return errors.New("consumer name is required")
+			}
+			if consumeMessage.QueueName == "" {
+				return errors.New("queue name is required")
+			}
+
+			msg, err := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
+			if err != nil {
+				return err
+			}
+
 			err = connWriter.Encode(msg)
 			if err != nil {
 				return err

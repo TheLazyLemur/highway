@@ -2,6 +2,11 @@ package repo
 
 import "sync"
 
+type Repo interface {
+	AddMessage(queueName string, message MessageModel) error
+	GetMessage(queueName, consumerName string) (MessageModel, error)
+}
+
 type MessageModel struct {
 	Id             int64
 	EventType      string
@@ -23,7 +28,7 @@ func NewMessageRepo() *MessageRepo {
 	}
 }
 
-func (m *MessageRepo) AddMessage(queueName string, message MessageModel) {
+func (m *MessageRepo) AddMessage(queueName string, message MessageModel) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -32,15 +37,18 @@ func (m *MessageRepo) AddMessage(queueName string, message MessageModel) {
 		m.queues[queueName] = []MessageModel{}
 	}
 
-	message.Id = m.NextID()
+	message.Id = m.nextID()
 	m.queues[queueName] = append(m.queues[queueName], message)
+
+	return nil
 }
 
-func (m *MessageRepo) NextID() int64 {
-	return m.lastID + 1
+func (m *MessageRepo) nextID() int64 {
+	m.lastID++
+	return m.lastID
 }
 
-func (m *MessageRepo) GetMessage(queueName, consumerName string) MessageModel {
+func (m *MessageRepo) GetMessage(queueName, consumerName string) (MessageModel, error) {
 	_, ok := m.queues[queueName]
 	if !ok {
 		m.queues[queueName] = []MessageModel{}
@@ -54,5 +62,5 @@ func (m *MessageRepo) GetMessage(queueName, consumerName string) MessageModel {
 			m.cursor++
 		}
 	}
-	return msg
+	return msg, nil
 }

@@ -3,6 +3,7 @@ package ops
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 	"highway/server/types"
 )
 
-func createTestInitMessage(role, queueName, name string) types.Message {
+func createTestInitMessage(role types.Role, queueName, name string) types.Message {
 	return types.Message{
 		Message: map[string]any{
 			"role":       role,
@@ -58,8 +59,17 @@ func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			msg := createTestInitMessage("consumer", tt.queueName, tt.nameField)
 
+			input := fmt.Sprintf(`{
+	"type": "consume",
+	"message": {
+		"queue_name": "%s",
+		"consumer_name": "%s"
+	}
+}`, tt.queueName, tt.nameField)
+			decoder := json.NewDecoder(bytes.NewBufferString(input))
+
 			svc := NewService(nil)
-			err := svc.initConnection(msg, nil, nil)
+			err := svc.initConnection(msg, decoder, nil)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error, got nil")
@@ -74,7 +84,7 @@ func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 }
 
 func TestInitConnectionProducerBasic(t *testing.T) {
-	msg := createTestInitMessage("producer", "test-queue", "")
+	msg := createTestInitMessage(Producer, "test-queue", "")
 
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 	var output bytes.Buffer
@@ -88,7 +98,7 @@ func TestInitConnectionProducerBasic(t *testing.T) {
 func TestInitConnectionVariousScenarios(t *testing.T) {
 	tests := []struct {
 		name        string
-		role        string
+		role        types.Role
 		queueName   string
 		nameField   string
 		input       string
@@ -151,6 +161,7 @@ func TestProducerPushMessage(t *testing.T) {
 		"type": "push",
 		"message": {
 			"event_type": "test_event",
+			"queue_name": "test-queue",
 			"message_payload": "payload"
 		}
 	}`
@@ -162,7 +173,7 @@ func TestProducerPushMessage(t *testing.T) {
 	r := repo.NewMessageRepo()
 	svc := NewService(r)
 
-	err := svc.handlerProducerConnection("test-queue", decoder, encoder)
+	err := svc.handleProducerMessages(decoder, encoder)
 	assert.NoError(t, err)
 
 	var result map[string]string
@@ -173,11 +184,13 @@ func TestProducerPushMessage(t *testing.T) {
 		"response": "pushed message to queue test-queue",
 	}, result)
 
+	msg, err := r.GetMessage("test-queue", "test-consumer")
+	assert.NoError(t, err)
 	assert.Equal(t, repo.MessageModel{
 		Id:             1,
 		EventType:      "test_event",
 		MessagePayload: "payload",
-	}, r.GetMessage("test-queue", "test-consumer"))
+	}, msg)
 }
 
 func TestConsumerRetrieveMessage(t *testing.T) {
@@ -201,7 +214,7 @@ func TestConsumerRetrieveMessage(t *testing.T) {
 	encoder := json.NewEncoder(&output)
 
 	svc := NewService(r)
-	svc.handlerConsumerConnection(decoder, encoder)
+	svc.handleConsumerMessages(decoder, encoder)
 
 	var result map[string]any
 	err := json.Unmarshal(output.Bytes(), &result)
@@ -228,7 +241,7 @@ func TestConsumerNoMessagesAvailable(t *testing.T) {
 	encoder := json.NewEncoder(&output)
 
 	svc := NewService(r)
-	svc.handlerConsumerConnection(decoder, encoder)
+	svc.handleConsumerMessages(decoder, encoder)
 
 	var result map[string]any
 	err := json.Unmarshal(output.Bytes(), &result)
@@ -249,8 +262,20 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 	})
 
 	input := `
-{"type":"consume","message":{"queue_name":"test_queue","consumer_name":"test_consumer"}}
-{"type":"consume","message":{"queue_name":"test_queue","consumer_name":"test_consumer"}}
+{
+  "type": "consume",
+  "message": {
+    "queue_name": "test_queue",
+    "consumer_name": "test_consumer"
+  }
+}
+{
+  "type": "consume",
+  "message": {
+    "queue_name": "test_queue",
+    "consumer_name": "test_consumer"
+  }
+}
 `
 	decoder := json.NewDecoder(strings.NewReader(input))
 
@@ -258,7 +283,7 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 	encoder := json.NewEncoder(&output)
 
 	svc := NewService(r)
-	svc.handlerConsumerConnection(decoder, encoder)
+	svc.handleConsumerMessages(decoder, encoder)
 
 	dec := json.NewDecoder(&output)
 
