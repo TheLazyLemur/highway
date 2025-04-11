@@ -123,7 +123,11 @@ func (s *Service) handleProducerMessages(
 
 		switch msg.Type {
 		case Push:
-			pushMessage, err := MapToStruct[types.PushMessage](msg.Message.(map[string]any))
+			data, ok := msg.Message.(map[string]any)
+			if !ok {
+				return ErrorInvalidDataShape
+			}
+			pushMessage, err := MapToStruct[types.PushMessage](data)
 			if err != nil {
 				return err
 			}
@@ -167,7 +171,11 @@ func (s *Service) handleConsumerMessages(
 
 		switch msg.Type {
 		case Consume:
-			consumeMessage, err := MapToStruct[types.ConsumeMessage](msg.Message.(map[string]any))
+			data, ok := msg.Message.(map[string]any)
+			if !ok {
+				return ErrorInvalidDataShape
+			}
+			consumeMessage, err := MapToStruct[types.ConsumeMessage](data)
 			if err != nil {
 				return err
 			}

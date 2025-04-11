@@ -22,4 +22,5 @@ var (
 	ErrorInvalidMessageType   = errors.New("invalid message type")
 	ErrorInvalidRole          = errors.New("invalid role")
 	ErrorInvalidAction        = errors.New("invalid action type")
+	ErrorInvalidDataShape     = errors.New("invalid data shape, expected map[string]any")
 )
