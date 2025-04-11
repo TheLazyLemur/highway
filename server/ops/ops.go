@@ -13,7 +13,7 @@ import (
 	"highway/server/types"
 )
 
-func MapToStruct[T any](data map[string]any) (T, error) {
+func mapToStruct[T any](data map[string]any) (T, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		var zero T
@@ -26,6 +26,20 @@ func MapToStruct[T any](data map[string]any) (T, error) {
 		return result, fmt.Errorf("failed to unmarshal data into %T: %w", result, err)
 	}
 	return result, nil
+}
+
+func getRawMessage(connReader *json.Decoder) (types.Message, error) {
+	var msg types.Message
+	err := connReader.Decode(&msg)
+	if err != nil {
+		if err == io.EOF {
+			slog.Error("Connection closed by client")
+			return types.Message{}, ErrorConnectionClosed
+		}
+		return types.Message{}, err
+	}
+
+	return msg, nil
 }
 
 type Service struct {
@@ -83,7 +97,7 @@ func (s *Service) initConnection(
 		return ErrorInvalidMessageType
 	}
 
-	initMsg, err := MapToStruct[types.InitMessage](rawMessage)
+	initMsg, err := mapToStruct[types.InitMessage](rawMessage)
 	if err != nil {
 		slog.Error(
 			"Error casting to InitMessage",
@@ -131,7 +145,7 @@ func (s *Service) handleProducerMessages(
 			if !ok {
 				return ErrorInvalidDataShape
 			}
-			pushMessage, err := MapToStruct[types.PushMessage](data)
+			pushMessage, err := mapToStruct[types.PushMessage](data)
 			if err != nil {
 				return err
 			}
@@ -185,7 +199,7 @@ func (s *Service) handleConsumerMessages(
 			if !ok {
 				return ErrorInvalidDataShape
 			}
-			consumeMessage, err := MapToStruct[types.ConsumeMessage](data)
+			consumeMessage, err := mapToStruct[types.ConsumeMessage](data)
 			if err != nil {
 				return err
 			}
@@ -209,18 +223,4 @@ func (s *Service) handleConsumerMessages(
 			return ErrorInvalidAction
 		}
 	}
-}
-
-func getRawMessage(connReader *json.Decoder) (types.Message, error) {
-	var msg types.Message
-	err := connReader.Decode(&msg)
-	if err != nil {
-		if err == io.EOF {
-			slog.Error("Connection closed by client")
-			return types.Message{}, ErrorConnectionClosed
-		}
-		return types.Message{}, err
-	}
-
-	return msg, nil
 }
