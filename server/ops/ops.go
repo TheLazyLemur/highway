@@ -70,7 +70,7 @@ func (s *Service) initConnection(
 	rawMessage, ok := msg.Message.(map[string]any)
 	if !ok {
 		slog.Error("Expected 'msg.Message' to be a map", "got", fmt.Sprintf("%T", msg.Message))
-		return errors.New("invalid message type: expected map[string]any")
+		return ErrorInvalidMessageType
 	}
 
 	initMsg, err := MapToStruct[types.InitMessage](rawMessage)
@@ -96,7 +96,7 @@ func (s *Service) initConnection(
 		}
 	default:
 		slog.Error("Unknown role", "role", initMsg.Role)
-		return errors.New("unknown role")
+		return ErrorInvalidRole
 	}
 
 	return nil
@@ -123,7 +123,7 @@ func (s *Service) handleProducerMessages(
 				return err
 			}
 			if pushMessage.QueueName == "" {
-				return errors.New("queue name is required")
+				return ErrorQueueNameRequired
 			}
 
 			s.repo.AddMessage(
@@ -141,7 +141,7 @@ func (s *Service) handleProducerMessages(
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown message type: %s", msg.Type)
+			return ErrorInvalidAction
 		}
 	}
 }
@@ -167,10 +167,10 @@ func (s *Service) handleConsumerMessages(
 				return err
 			}
 			if consumeMessage.ConsumerName == "" {
-				return errors.New("consumer name is required")
+				return ErrorConsumerNameRequired
 			}
 			if consumeMessage.QueueName == "" {
-				return errors.New("queue name is required")
+				return ErrorQueueNameRequired
 			}
 
 			msg, err := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
@@ -182,6 +182,8 @@ func (s *Service) handleConsumerMessages(
 			if err != nil {
 				return err
 			}
+		default:
+			return ErrorInvalidAction
 		}
 	}
 }

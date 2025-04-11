@@ -3,6 +3,7 @@ package ops
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -39,19 +40,19 @@ func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 		name        string
 		queueName   string
 		nameField   string
-		expectError bool
+		expectError error
 	}{
 		{
 			name:        "MissingConsumerName",
 			queueName:   "test-queue",
 			nameField:   "",
-			expectError: true,
+			expectError: ErrorConsumerNameRequired,
 		},
 		{
 			name:        "MissingQueueName",
 			queueName:   "",
 			nameField:   "test-name",
-			expectError: true,
+			expectError: ErrorQueueNameRequired,
 		},
 	}
 
@@ -70,15 +71,7 @@ func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 
 			svc := NewService(nil)
 			err := svc.initConnection(msg, decoder, nil)
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error, got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error, got %v", err)
-				}
-			}
+			assert.True(t, errors.Is(err, tt.expectError))
 		})
 	}
 }
@@ -102,7 +95,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 		queueName   string
 		nameField   string
 		input       string
-		expectError bool
+		expectError error
 	}{
 		{
 			name:      "ProducerMissingQueueName",
@@ -116,7 +109,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 					"message_payload": "test_payload"
 				}
 			}`,
-			expectError: true,
+			expectError: ErrorQueueNameRequired,
 		},
 		{
 			name:        "ProducerInvalidAction",
@@ -124,7 +117,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 			queueName:   "test-queue",
 			nameField:   "",
 			input:       `{"type": "invalid"}`,
-			expectError: true,
+			expectError: ErrorInvalidAction,
 		},
 		{
 			name:        "InvalidRole",
@@ -132,7 +125,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 			queueName:   "test-queue",
 			nameField:   "",
 			input:       "",
-			expectError: true,
+			expectError: ErrorInvalidRole,
 		},
 	}
 
@@ -143,15 +136,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 
 			svc := NewService(nil)
 			err := svc.initConnection(msg, decoder, nil)
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error, got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error, got %v", err)
-				}
-			}
+			assert.True(t, errors.Is(err, tt.expectError))
 		})
 	}
 }
