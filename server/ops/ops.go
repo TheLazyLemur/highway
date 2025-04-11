@@ -51,7 +51,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 		return
 	}
 
-	switch msg.Type {
+	switch msg.Action {
 	case Init:
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) {
@@ -62,7 +62,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 		}
 
 	default:
-		slog.Error("Expected InitMessage, got", "type", msg.Type)
+		slog.Error("Expected InitMessage, got", "type", msg.Action)
 		return
 	}
 }
@@ -121,7 +121,7 @@ func (s *Service) handleProducerMessages(
 			return err
 		}
 
-		switch msg.Type {
+		switch msg.Action {
 		case Push:
 			data, ok := msg.Message.(map[string]any)
 			if !ok {
@@ -169,7 +169,7 @@ func (s *Service) handleConsumerMessages(
 			return err
 		}
 
-		switch msg.Type {
+		switch msg.Action {
 		case Consume:
 			data, ok := msg.Message.(map[string]any)
 			if !ok {

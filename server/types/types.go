@@ -7,7 +7,7 @@ type (
 )
 
 type Message struct {
-	Type    Action `json:"type"`
+	Action  Action `json:"type"`
 	Message any    `json:"message"`
 }
 
