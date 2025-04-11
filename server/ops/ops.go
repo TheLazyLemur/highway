@@ -51,6 +51,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 
 	msg, err := getRawMessage(decoder)
 	if err != nil {
+		slog.Error("Error reading message", "error", err.Error())
 		return
 	}
 
@@ -58,6 +59,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 	case Init:
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) {
+				slog.Error("Connection closed by client")
 				return
 			}
 			slog.Error("Error in initConnection", "error", err.Error())
