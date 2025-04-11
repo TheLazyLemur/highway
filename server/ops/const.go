@@ -24,4 +24,5 @@ var (
 	ErrorInvalidRole          = errors.New("invalid role")
 	ErrorInvalidAction        = errors.New("invalid action type")
 	ErrorInvalidDataShape     = errors.New("invalid data shape, expected map[string]any")
+	ErrorConnectionClosed     = errors.New("connection closed by client")
 )

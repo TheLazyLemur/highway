@@ -47,10 +47,8 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 		conn.Close()
 	}()
 
-	var msg types.Message
-	err := decoder.Decode(&msg)
+	msg, err := getRawMessage(decoder)
 	if err != nil {
-		slog.Error("Error decoding message", "error", err.Error())
 		return
 	}
 
@@ -115,10 +113,9 @@ func (s *Service) handleProducerMessages(
 	connWriter *json.Encoder,
 ) error {
 	for {
-		var msg types.Message
-		err := connReader.Decode(&msg)
+		msg, err := getRawMessage(connReader)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, ErrorConnectionClosed) {
 				return nil
 			}
 			return err
@@ -163,10 +160,9 @@ func (s *Service) handleConsumerMessages(
 	connWriter *json.Encoder,
 ) error {
 	for {
-		var msg types.Message
-		err := connReader.Decode(&msg)
+		msg, err := getRawMessage(connReader)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, ErrorConnectionClosed) {
 				return nil
 			}
 			return err
@@ -202,4 +198,18 @@ func (s *Service) handleConsumerMessages(
 			return ErrorInvalidAction
 		}
 	}
+}
+
+func getRawMessage(connReader *json.Decoder) (types.Message, error) {
+	var msg types.Message
+	err := connReader.Decode(&msg)
+	if err != nil {
+		if err == io.EOF {
+			slog.Error("Connection closed by client")
+			return types.Message{}, ErrorConnectionClosed
+		}
+		return types.Message{}, err
+	}
+
+	return msg, nil
 }

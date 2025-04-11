@@ -29,7 +29,9 @@ func main() {
 	{
 		"type": "push",
 		"message": {
-			"message_payload": "hello"
+			"event_type": "test_event",
+			"queue_name": "test-queue",
+			"message_payload": "payload"
 		}
 	}
 	`
