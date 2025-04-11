@@ -166,6 +166,14 @@ func TestProducerPushMessage(t *testing.T) {
 		"type": "push",
 		"message": {
 			"event_type": "test_event",
+			"queue_name": "test-queue-other",
+			"message_payload": "payload"
+		}
+	}
+	{
+		"type": "push",
+		"message": {
+			"event_type": "test_event",
 			"queue_name": "test-queue",
 			"message_payload": "payload"
 		}
@@ -183,7 +191,7 @@ func TestProducerPushMessage(t *testing.T) {
 	err := svc.handleProducerMessages(decoder, encoder)
 	assert.NoError(t, err)
 
-	for range 2 {
+	for {
 		testDec := json.NewDecoder(&output)
 		var result map[string]string
 		err := testDec.Decode(&result)
@@ -208,6 +216,14 @@ func TestProducerPushMessage(t *testing.T) {
 	}, msg)
 
 	msg, err = r.GetMessage("test-queue", "test-consumer")
+	assert.NoError(t, err)
+	assert.Equal(t, repo.MessageModel{
+		Id:             3,
+		EventType:      "test_event",
+		MessagePayload: "payload",
+	}, msg)
+
+	msg, err = r.GetMessage("test-queue-other", "test-consumer-other")
 	assert.NoError(t, err)
 	assert.Equal(t, repo.MessageModel{
 		Id:             2,

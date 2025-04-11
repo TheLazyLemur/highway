@@ -14,18 +14,18 @@ type MessageModel struct {
 }
 
 type MessageRepo struct {
-	mutex  sync.RWMutex
-	queues map[string][]MessageModel
-	lastID int64
-	cursor int64
+	mutex           sync.RWMutex
+	queues          map[string][]MessageModel
+	lastID          int64
+	consumerCursors map[string]int64 // Map to store cursors for each consumer
 }
 
 func NewMessageRepo() *MessageRepo {
 	return &MessageRepo{
-		mutex:  sync.RWMutex{},
-		queues: make(map[string][]MessageModel),
-		lastID: 0,
-		cursor: 0,
+		mutex:           sync.RWMutex{},
+		queues:          make(map[string][]MessageModel),
+		lastID:          0,
+		consumerCursors: make(map[string]int64),
 	}
 }
 
@@ -55,14 +55,20 @@ func (m *MessageRepo) GetMessage(queueName, consumerName string) (MessageModel, 
 		m.queues[queueName] = []MessageModel{}
 	}
 
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	var msg MessageModel
+	cursor, ok := m.consumerCursors[consumerName]
+	if !ok {
+		cursor = 0
+	}
+
 	for _, mm := range m.queues[queueName] {
-		if mm.Id > m.cursor {
-			// TODO: Implement cursor per consumer
-			// Return the message and increment the cursor only once
+		if mm.Id > cursor {
 			msg = mm
-			m.cursor = mm.Id // Set cursor to the current message's ID
-			break            // Exit loop after returning the first message
+			m.consumerCursors[consumerName] = mm.Id
+			break
 		}
 	}
 	return msg, nil

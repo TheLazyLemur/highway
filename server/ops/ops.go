@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"runtime/debug"
 
 	"highway/server/repo"
 	"highway/server/types"
@@ -43,6 +44,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("Recovered from panic in connection", "error", r)
+			slog.Error("Stack trace", "stack", fmt.Sprintf("%+v", debug.Stack()))
 		}
 		conn.Close()
 	}()
