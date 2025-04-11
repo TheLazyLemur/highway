@@ -43,10 +43,10 @@ func getRawMessage(connReader *json.Decoder) (types.Message, error) {
 }
 
 type Service struct {
-	repo *repo.MessageRepo
+	repo repo.Repo
 }
 
-func NewService(repo *repo.MessageRepo) *Service {
+func NewService(repo repo.Repo) *Service {
 	return &Service{
 		repo: repo,
 	}

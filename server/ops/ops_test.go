@@ -185,7 +185,8 @@ func TestProducerPushMessage(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	r := repo.NewMessageRepo()
+	r, _ := repo.NewSQLiteRepo(":memory:")
+	r.RunMigrations()
 	svc := NewService(r)
 
 	err := svc.handleProducerMessages(decoder, encoder)
@@ -233,11 +234,13 @@ func TestProducerPushMessage(t *testing.T) {
 }
 
 func TestConsumerRetrieveMessage(t *testing.T) {
-	r := repo.NewMessageRepo()
+	r, _ := repo.NewSQLiteRepo(":memory:")
+	r.RunMigrations()
+
 	r.AddMessage("test_queue", repo.MessageModel{
 		Id:             1,
 		EventType:      "test_event",
-		MessagePayload: "my_payload",
+		MessagePayload: `{"name": "test_event"}`,
 	})
 
 	input := `{
@@ -261,12 +264,13 @@ func TestConsumerRetrieveMessage(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"Id":             float64(1),
 		"EventType":      "test_event",
-		"MessagePayload": "my_payload",
+		"MessagePayload": `{"name": "test_event"}`,
 	}, result)
 }
 
 func TestConsumerNoMessagesAvailable(t *testing.T) {
-	r := repo.NewMessageRepo()
+	r, _ := repo.NewSQLiteRepo(":memory:")
+	r.RunMigrations()
 	input := `{
 		"type": "consume",
 		"message": {
@@ -293,8 +297,15 @@ func TestConsumerNoMessagesAvailable(t *testing.T) {
 }
 
 func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
-	r := repo.NewMessageRepo()
+	r, _ := repo.NewSQLiteRepo(":memory:")
+	r.RunMigrations()
+
 	r.AddMessage("test_queue", repo.MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "my_payload",
+	})
+	r.AddMessage("test_queue_other", repo.MessageModel{
 		Id:             1,
 		EventType:      "test_event",
 		MessagePayload: "my_payload",
