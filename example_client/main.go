@@ -38,8 +38,14 @@ func main() {
 	encoder := json.NewEncoder(conn)
 
 	encoder.Encode(pl)
+	count := 1
 	for {
+		pl2["message"].(map[string]any)["message_payload"] = fmt.Sprintf(
+			`{"name": "Daniel %d"}`,
+			count,
+		)
 		encoder.Encode(pl2)
+		count++
 		time.Sleep(time.Second * 1)
 	}
 }
@@ -94,6 +100,17 @@ func consumer() {
 		var person Person
 		json.Unmarshal([]byte(data), &person)
 		fmt.Println(person)
+
+		ack := map[string]any{
+			"type": "ack",
+			"message": map[string]any{
+				"message_id":    eventID,
+				"consumer_name": "test_consumer",
+				"queue_name":    "test_queue",
+			},
+		}
+
+		encoder.Encode(ack)
 
 		time.Sleep(time.Second * 5)
 	}

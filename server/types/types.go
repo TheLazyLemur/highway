@@ -25,3 +25,9 @@ type ConsumeMessage struct {
 	QueueName    string `json:"queue_name"`
 	ConsumerName string `json:"consumer_name"`
 }
+
+type AckMessage struct {
+	QueueName    string `json:"queue_name"`
+	ConsumerName string `json:"consumer_name"`
+	MessageId    int64  `json:"message_id"`
+}

@@ -219,6 +219,16 @@ func (s *Service) handleConsumerMessages(
 			if err != nil {
 				return err
 			}
+		case Ack:
+			data, ok := msg.Message.(map[string]any)
+			if !ok {
+				return ErrorInvalidDataShape
+			}
+			ackMessage, err := mapToStruct[types.AckMessage](data)
+			if err != nil {
+				return err
+			}
+			s.repo.AckMessage(ackMessage.QueueName, ackMessage.ConsumerName, ackMessage.MessageId)
 		default:
 			return ErrorInvalidAction
 		}

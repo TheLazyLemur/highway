@@ -35,6 +35,13 @@ func (r *SQLiteRepo) RunMigrations() error {
 		queue_name TEXT NOT NULL,
 		cursor INTEGER NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS acks (
+		consumer_name TEXT NOT NULL,
+		queue_name TEXT NOT NULL,
+		message_id INTEGER NOT NULL,
+		PRIMARY KEY (consumer_name, queue_name, message_id)
+	);
 	`
 	_, err := r.db.Exec(query)
 	if err != nil {
@@ -65,14 +72,37 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 		return MessageModel{}, fmt.Errorf("failed to get consumer cursor: %w", err)
 	}
 
+	var unackedMessageId int64
+	err = r.db.QueryRow(`
+	SELECT id FROM messages
+	WHERE queue_name = ?
+	AND id NOT IN (
+		SELECT message_id FROM acks
+		WHERE consumer_name = ? AND queue_name = ?
+	)
+	ORDER BY id ASC
+	LIMIT 1;
+	`, queueName, consumerName, queueName).Scan(&unackedMessageId)
+	if err != nil && err != sql.ErrNoRows {
+		return MessageModel{}, fmt.Errorf("failed to check for unacknowledged messages: %w", err)
+	}
+
+	if err != sql.ErrNoRows && unackedMessageId < cursor {
+		cursor = unackedMessageId
+	}
+
 	var msg MessageModel
 	err = r.db.QueryRow(`
 	SELECT id, event_type, message_payload
 	FROM messages
-	WHERE queue_name = ? AND id > ?
+	WHERE queue_name = ? AND id >= ?
+	AND id NOT IN (
+		SELECT message_id FROM acks
+		WHERE consumer_name = ? AND queue_name = ?
+	)
 	ORDER BY id ASC
 	LIMIT 1;
-	`, queueName, cursor).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
+	`, queueName, cursor, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return MessageModel{}, nil // No new messages
@@ -90,4 +120,16 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	}
 
 	return msg, nil
+}
+
+func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64) error {
+	_, err := r.db.Exec(`
+	INSERT INTO acks (consumer_name, queue_name, message_id)
+	VALUES (?, ?, ?)
+	ON CONFLICT DO NOTHING;
+	`, consumerName, queueName, messageId)
+	if err != nil {
+		return fmt.Errorf("failed to acknowledge message: %w", err)
+	}
+	return nil
 }

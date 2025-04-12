@@ -209,6 +209,7 @@ func TestProducerPushMessage(t *testing.T) {
 	}
 
 	msg, err := r.GetMessage("test-queue", "test-consumer")
+	r.AckMessage("test-queue", "test-consumer", 1)
 	assert.NoError(t, err)
 	assert.Equal(t, repo.MessageModel{
 		Id:             1,
@@ -305,6 +306,7 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 		EventType:      "test_event",
 		MessagePayload: "my_payload",
 	})
+
 	r.AddMessage("test_queue_other", repo.MessageModel{
 		Id:             1,
 		EventType:      "test_event",
@@ -318,6 +320,14 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
     "queue_name": "test_queue",
     "consumer_name": "test_consumer"
   }
+}
+{
+	"type": "ack",
+	"message": {
+		"queue_name": "test_queue",
+		"consumer_name": "test_consumer",
+		"message_id": 1
+	}
 }
 {
   "type": "consume",
@@ -335,11 +345,11 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 	svc := NewService(r)
 	svc.handleConsumerMessages(decoder, encoder)
 
-	dec := json.NewDecoder(&output)
+	testDec := json.NewDecoder(&output)
 
 	var result1, result2 map[string]any
 
-	err := dec.Decode(&result1)
+	err := testDec.Decode(&result1)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]any{
 		"Id":             float64(1),
@@ -347,7 +357,7 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 		"MessagePayload": "my_payload",
 	}, result1)
 
-	err = dec.Decode(&result2)
+	err = testDec.Decode(&result2)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]any{
 		"Id":             float64(0),
