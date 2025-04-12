@@ -48,6 +48,48 @@ func (c *Client) ConnectAsConsumer() error {
 	return nil
 }
 
+func (c *Client) ConnectAsProducer() error {
+	conn, err := net.Dial("tcp", "localhost:8080")
+	if err != nil {
+		return err
+	}
+
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
+
+	err = encoder.Encode(map[string]any{
+		"type": "init",
+		"message": map[string]any{
+			"role": "producer",
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	c.conn = conn
+	c.encoder = encoder
+	c.decoder = decoder
+
+	return nil
+}
+
+func (c *Client) Push(eventType string, payload string) error {
+	err := c.encoder.Encode(map[string]any{
+		"type": "push",
+		"message": map[string]any{
+			"event_type":      eventType,
+			"queue_name":      c.queueName,
+			"message_payload": payload,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) Consume(cb func(id int64, eventType string, pl string) error) {
 	go func() {
 		for {
