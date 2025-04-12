@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net"
 	"time"
@@ -107,12 +108,18 @@ func (c *Client) Consume(cb func(id int64, eventType string, pl string) error) {
 				},
 			})
 			if err != nil {
+				if err == io.EOF {
+					slog.Info("Connection closed by server")
+				}
 				return
 			}
 
 			var rawData map[string]any
 			err = c.decoder.Decode(&rawData)
 			if err != nil {
+				if err == io.EOF {
+					slog.Info("Connection closed by server")
+				}
 				return
 			}
 

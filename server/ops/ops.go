@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
+	"strings"
 
 	"highway/server/repo"
 	"highway/server/types"
@@ -72,7 +73,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 	switch msg.Action {
 	case Init:
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection reset by peer") {
 				slog.Error("Connection closed by client")
 				return
 			}
@@ -110,6 +111,10 @@ func (s *Service) initConnection(
 	switch initMsg.Role {
 	case Producer:
 		if err := s.handleProducerMessages(decoder, encoder); err != nil {
+			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection reset by peer") {
+				slog.Error("Connection closed by client")
+				return nil
+			}
 			slog.Error("Error in handlerProducer", "error", err.Error())
 			return err
 		}
@@ -172,6 +177,10 @@ func (s *Service) handleProducerMessages(
 				),
 			}
 			if err := connWriter.Encode(resp); err != nil {
+				if err == io.EOF {
+					slog.Error("Connection closed by client")
+					return nil
+				}
 				return err
 			}
 		default:

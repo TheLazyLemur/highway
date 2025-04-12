@@ -17,7 +17,6 @@ func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
 
-	// Configure SQLite for maximum performance with minimum safety tradeoff
 	_, err = db.Exec(`
 	PRAGMA synchronous = OFF;
 	PRAGMA journal_mode = MEMORY;
