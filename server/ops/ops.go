@@ -146,41 +146,7 @@ func (s *Service) handleProducerMessages(
 
 		switch msg.Action {
 		case Push:
-			data, ok := msg.Message.(map[string]any)
-			if !ok {
-				return ErrorInvalidDataShape
-			}
-			pushMessage, err := mapToStruct[types.PushMessage](data)
-			if err != nil {
-				return err
-			}
-			if pushMessage.QueueName == "" {
-				return ErrorQueueNameRequired
-			}
-
-			if err := s.repo.AddMessage(
-				pushMessage.QueueName,
-				repo.MessageModel{
-					EventType:      pushMessage.EventType,
-					MessagePayload: pushMessage.MessagePayload,
-				},
-			); err != nil {
-				return err
-			}
-
-			resp := map[string]any{
-				"response": fmt.Sprintf(
-					"pushed message to queue %s with type %s with payload %s",
-					pushMessage.QueueName,
-					pushMessage.EventType,
-					pushMessage.MessagePayload,
-				),
-			}
-			if err := connWriter.Encode(resp); err != nil {
-				if err == io.EOF {
-					slog.Error("Connection closed by client")
-					return nil
-				}
+			if err := handlePush(msg, connReader, connWriter, s.repo); err != nil {
 				return err
 			}
 		default:
@@ -204,40 +170,13 @@ func (s *Service) handleConsumerMessages(
 
 		switch msg.Action {
 		case Consume:
-			data, ok := msg.Message.(map[string]any)
-			if !ok {
-				return ErrorInvalidDataShape
-			}
-			consumeMessage, err := mapToStruct[types.ConsumeMessage](data)
-			if err != nil {
-				return err
-			}
-			if consumeMessage.ConsumerName == "" {
-				return ErrorConsumerNameRequired
-			}
-			if consumeMessage.QueueName == "" {
-				return ErrorQueueNameRequired
-			}
-
-			msg, err := s.repo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
-			if err != nil {
-				return err
-			}
-
-			err = connWriter.Encode(msg)
-			if err != nil {
+			if err := handleConsume(msg, connReader, connWriter, s.repo); err != nil {
 				return err
 			}
 		case Ack:
-			data, ok := msg.Message.(map[string]any)
-			if !ok {
-				return ErrorInvalidDataShape
-			}
-			ackMessage, err := mapToStruct[types.AckMessage](data)
-			if err != nil {
+			if err := handleAck(msg, s.repo); err != nil {
 				return err
 			}
-			s.repo.AckMessage(ackMessage.QueueName, ackMessage.ConsumerName, ackMessage.MessageId)
 		default:
 			return ErrorInvalidAction
 		}

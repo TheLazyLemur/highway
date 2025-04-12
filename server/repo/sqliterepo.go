@@ -11,6 +11,8 @@ type SQLiteRepo struct {
 	db *sql.DB
 }
 
+// NewSQLiteRepo initializes a new SQLiteRepo instance with the given database path.
+// It configures SQLite settings for performance optimization.
 func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -29,6 +31,7 @@ func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
 	return &SQLiteRepo{db: db}, nil
 }
 
+// RunMigrations creates the necessary database tables if they do not already exist.
 func (r *SQLiteRepo) RunMigrations() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS messages (
@@ -59,6 +62,7 @@ func (r *SQLiteRepo) RunMigrations() error {
 	return nil
 }
 
+// AddMessage inserts a new message into the specified queue.
 func (r *SQLiteRepo) AddMessage(queueName string, message MessageModel) error {
 	query := `
 	INSERT INTO messages (queue_name, event_type, message_payload)
@@ -71,6 +75,8 @@ func (r *SQLiteRepo) AddMessage(queueName string, message MessageModel) error {
 	return nil
 }
 
+// GetMessage retrieves the next available message for a consumer from the specified queue.
+// It also updates the consumer's cursor to the retrieved message's ID.
 func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, error) {
 	var cursor int64
 	err := r.db.QueryRow(`
@@ -131,6 +137,7 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	return msg, nil
 }
 
+// AckMessage acknowledges the processing of a message by a consumer.
 func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64) error {
 	_, err := r.db.Exec(`
 	INSERT INTO acks (consumer_name, queue_name, message_id)
