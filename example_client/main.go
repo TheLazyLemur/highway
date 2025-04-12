@@ -38,12 +38,9 @@ func main() {
 	cl.ConnectAsProducer()
 	count := 1
 	for {
-		x := fmt.Sprintf(
-			`{"name": "Daniel %d"}`,
-			count,
-		)
-
-		cl.Push("test_event", x)
+		cl.Push("test_event", map[string]string{
+			"name": fmt.Sprintf("Daniel %d", count),
+		})
 		count++
 		time.Sleep(time.Second * 1)
 	}

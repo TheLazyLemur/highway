@@ -74,13 +74,18 @@ func (c *Client) ConnectAsProducer() error {
 	return nil
 }
 
-func (c *Client) Push(eventType string, payload string) error {
-	err := c.encoder.Encode(map[string]any{
+func (c *Client) Push(eventType string, payload any) error {
+	pload, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	err = c.encoder.Encode(map[string]any{
 		"type": "push",
 		"message": map[string]any{
 			"event_type":      eventType,
 			"queue_name":      c.queueName,
-			"message_payload": payload,
+			"message_payload": string(pload),
 		},
 	})
 	if err != nil {
