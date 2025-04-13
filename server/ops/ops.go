@@ -34,7 +34,7 @@ func getRawMessage(connReader *json.Decoder) (types.Message, error) {
 	err := connReader.Decode(&msg)
 	if err != nil {
 		if err == io.EOF {
-			slog.Error("Connection closed by client")
+			slog.Error("Connection closed unexpectedly by client", "cause", "EOF")
 			return types.Message{}, ErrorConnectionClosed
 		}
 		return types.Message{}, err
@@ -66,7 +66,7 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 
 	msg, err := getRawMessage(decoder)
 	if err != nil {
-		slog.Error("Error reading message", "error", err.Error())
+		slog.Error("Failed to decode incoming message", "error", err.Error())
 		return
 	}
 
@@ -74,15 +74,15 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 	case Init:
 		if err := s.initConnection(msg, decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection reset by peer") {
-				slog.Error("Connection closed by client")
+				slog.Error("Client terminated connection during initialization")
 				return
 			}
-			slog.Error("Error in initConnection", "error", err.Error())
+			slog.Error("Failed to initialize client connection", "error", err.Error())
 			return
 		}
 
 	default:
-		slog.Error("Expected InitMessage, got", "type", msg.Action)
+		slog.Error("Invalid initial message action", "expected", "Init", "received", msg.Action)
 		return
 	}
 }
@@ -94,14 +94,20 @@ func (s *Service) initConnection(
 ) error {
 	rawMessage, ok := msg.Message.(map[string]any)
 	if !ok {
-		slog.Error("Expected 'msg.Message' to be a map", "got", fmt.Sprintf("%T", msg.Message))
+		slog.Error(
+			"Message format error",
+			"expected",
+			"map[string]any",
+			"got",
+			fmt.Sprintf("%T", msg.Message),
+		)
 		return ErrorInvalidMessageType
 	}
 
 	initMsg, err := mapToStruct[types.InitMessage](rawMessage)
 	if err != nil {
 		slog.Error(
-			"Error casting to InitMessage",
+			"Failed to parse initialization message",
 			"error",
 			err.Error(),
 		)
@@ -112,19 +118,25 @@ func (s *Service) initConnection(
 	case Producer:
 		if err := s.handleProducerMessages(decoder, encoder); err != nil {
 			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection reset by peer") {
-				slog.Error("Connection closed by client")
+				slog.Error("Producer connection terminated by client")
 				return nil
 			}
-			slog.Error("Error in handlerProducer", "error", err.Error())
+			slog.Error("Producer message handling failed", "error", err.Error())
 			return err
 		}
 	case Consumer:
 		if err := s.handleConsumerMessages(decoder, encoder); err != nil {
-			slog.Error("Error in handlerConsumer", "error", err.Error())
+			slog.Error("Consumer message handling failed", "error", err.Error())
 			return err
 		}
 	default:
-		slog.Error("Unknown role", "role", initMsg.Role)
+		slog.Error(
+			"Client specified invalid role in initialization",
+			"role",
+			initMsg.Role,
+			"valid_roles",
+			"Producer,Consumer",
+		)
 		return ErrorInvalidRole
 	}
 
@@ -171,12 +183,12 @@ func (s *Service) handleConsumerMessages(
 		switch msg.Action {
 		case Consume:
 			if err := handleConsume(msg, connReader, connWriter, s.repo); err != nil {
-				slog.Error("Error in handleConsume", "error", err.Error())
+				slog.Error("Failed to process consumption request", "error", err.Error())
 				return err
 			}
 		case Ack:
 			if err := handleAck(msg, s.repo); err != nil {
-				slog.Error("Error in handleAck", "error", err.Error())
+				slog.Error("Failed to acknowledge message", "error", err.Error())
 				return err
 			}
 		default:
