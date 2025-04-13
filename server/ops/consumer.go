@@ -9,7 +9,6 @@ import (
 
 func handleConsume(
 	input types.Message,
-	connReader *json.Decoder,
 	connWriter *json.Encoder,
 	dbRepo repo.Repo,
 ) error {

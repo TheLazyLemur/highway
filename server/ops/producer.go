@@ -12,7 +12,6 @@ import (
 
 func handlePush(
 	msg types.Message,
-	connReader *json.Decoder,
 	connWriter *json.Encoder,
 	dbRepo repo.Repo,
 ) error {

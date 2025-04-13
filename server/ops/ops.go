@@ -158,7 +158,7 @@ func (s *Service) handleProducerMessages(
 
 		switch msg.Action {
 		case Push:
-			if err := handlePush(msg, connReader, connWriter, s.repo); err != nil {
+			if err := handlePush(msg, connWriter, s.repo); err != nil {
 				return err
 			}
 		default:
@@ -182,7 +182,7 @@ func (s *Service) handleConsumerMessages(
 
 		switch msg.Action {
 		case Consume:
-			if err := handleConsume(msg, connReader, connWriter, s.repo); err != nil {
+			if err := handleConsume(msg, connWriter, s.repo); err != nil {
 				slog.Error("Failed to process consumption request", "error", err.Error())
 				return err
 			}
