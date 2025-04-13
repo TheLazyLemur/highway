@@ -171,10 +171,12 @@ func (s *Service) handleConsumerMessages(
 		switch msg.Action {
 		case Consume:
 			if err := handleConsume(msg, connReader, connWriter, s.repo); err != nil {
+				slog.Error("Error in handleConsume", "error", err.Error())
 				return err
 			}
 		case Ack:
 			if err := handleAck(msg, s.repo); err != nil {
+				slog.Error("Error in handleAck", "error", err.Error())
 				return err
 			}
 		default:
