@@ -18,13 +18,13 @@ func mapToStruct[T any](data map[string]any) (T, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		var zero T
-		return zero, fmt.Errorf("failed to marshal data: %w", err)
+		return zero, fmt.Errorf("%w: %v", ErrorMarshalData, err)
 	}
 
 	var result T
 	err = json.Unmarshal(b, &result)
 	if err != nil {
-		return result, fmt.Errorf("failed to unmarshal data into %T: %w", result, err)
+		return result, fmt.Errorf("%w into %T: %v", ErrorUnmarshalData, result, err)
 	}
 	return result, nil
 }

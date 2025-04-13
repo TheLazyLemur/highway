@@ -19,11 +19,13 @@ const (
 )
 
 var (
-	ErrorQueueNameRequired    = errors.New("queue name is required")
+	ErrorConnectionClosed     = errors.New("connection closed by client")
 	ErrorConsumerNameRequired = errors.New("consumer name is required")
-	ErrorInvalidMessageType   = errors.New("invalid message type")
-	ErrorInvalidRole          = errors.New("invalid role")
 	ErrorInvalidAction        = errors.New("invalid action type")
 	ErrorInvalidDataShape     = errors.New("invalid data shape, expected map[string]any")
-	ErrorConnectionClosed     = errors.New("connection closed by client")
+	ErrorInvalidMessageType   = errors.New("invalid message type")
+	ErrorInvalidRole          = errors.New("invalid role")
+	ErrorMarshalData          = errors.New("failed to marshal data")
+	ErrorQueueNameRequired    = errors.New("queue name is required")
+	ErrorUnmarshalData        = errors.New("failed to unmarshal data")
 )
