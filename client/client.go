@@ -14,9 +14,10 @@ type Client struct {
 	consumerName string
 	encoder      *json.Encoder
 	decoder      *json.Decoder
+	uri          string
 }
 
-func NewClient(queueName string, consumerName string) *Client {
+func NewClient(uri string, queueName string, consumerName string) *Client {
 	return &Client{
 		queueName:    queueName,
 		consumerName: consumerName,
@@ -24,7 +25,7 @@ func NewClient(queueName string, consumerName string) *Client {
 }
 
 func (c *Client) ConnectAsConsumer() error {
-	conn, err := net.Dial("tcp", "localhost:8080")
+	conn, err := net.Dial("tcp", c.uri)
 	if err != nil {
 		return err
 	}
@@ -50,7 +51,7 @@ func (c *Client) ConnectAsConsumer() error {
 }
 
 func (c *Client) ConnectAsProducer() error {
-	conn, err := net.Dial("tcp", "localhost:8080")
+	conn, err := net.Dial("tcp", c.uri)
 	if err != nil {
 		return err
 	}
