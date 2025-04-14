@@ -150,3 +150,9 @@ func (c *Client) Consume(cb func(id int64, eventType string, pl string) error) {
 		}
 	}()
 }
+
+func (c *Client) Close() {
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
