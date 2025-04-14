@@ -19,6 +19,7 @@ type Client struct {
 
 func NewClient(uri string, queueName string, consumerName string) *Client {
 	return &Client{
+		uri:          uri,
 		queueName:    queueName,
 		consumerName: consumerName,
 	}
