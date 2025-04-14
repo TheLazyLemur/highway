@@ -23,6 +23,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	DbUrl := os.Getenv("DB_URL")
+	slog.Info("env", "port", port, "db_url", DbUrl)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

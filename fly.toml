@@ -1,0 +1,31 @@
+# fly.toml app configuration file generated for highway on 2025-04-14T12:05:32+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'highway'
+primary_region = 'jnb'
+
+[build]
+
+[env]
+  PORT = '8080'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 8080
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  processes = ['app']
+
+  [[services.ports]]
+    port = 8080
+
+[[mounts]]
+  source = "dbvol"
+  destination = "/data"
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
