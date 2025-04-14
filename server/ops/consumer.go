@@ -27,8 +27,15 @@ func handleConsume(
 		return ErrorQueueNameRequired
 	}
 
-	msg, err := dbRepo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
-	if err != nil {
+	var msg repo.MessageModel
+	if err := withRetry(5, func() error {
+		dbMsg, err := dbRepo.GetMessage(consumeMessage.QueueName, consumeMessage.ConsumerName)
+		if err != nil {
+			return err
+		}
+		msg = dbMsg
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -50,7 +57,12 @@ func handleAck(input types.Message, dbRepo repo.Repo) error {
 		return err
 	}
 
-	dbRepo.AckMessage(ackMessage.QueueName, ackMessage.ConsumerName, ackMessage.MessageId)
-
-	return nil
+	err = withRetry(5, func() error {
+		return dbRepo.AckMessage(
+			ackMessage.QueueName,
+			ackMessage.ConsumerName,
+			ackMessage.MessageId,
+		)
+	})
+	return err
 }

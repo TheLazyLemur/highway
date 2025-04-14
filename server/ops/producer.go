@@ -27,13 +27,15 @@ func handlePush(
 		return ErrorQueueNameRequired
 	}
 
-	if err := dbRepo.AddMessage(
-		pushMessage.QueueName,
-		repo.MessageModel{
-			EventType:      pushMessage.EventType,
-			MessagePayload: pushMessage.MessagePayload,
-		},
-	); err != nil {
+	if err := withRetry(5, func() error {
+		return dbRepo.AddMessage(
+			pushMessage.QueueName,
+			repo.MessageModel{
+				EventType:      pushMessage.EventType,
+				MessagePayload: pushMessage.MessagePayload,
+			},
+		)
+	}); err != nil {
 		return err
 	}
 

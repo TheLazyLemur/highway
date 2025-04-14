@@ -21,18 +21,34 @@ func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
 
 	_, err = db.Exec(`
 	PRAGMA synchronous = OFF;
-	PRAGMA journal_mode = MEMORY;
+	PRAGMA journal_mode = WAL;
 	PRAGMA temp_store = MEMORY;
+	PRAGMA busy_timeout = 5000;
+	PRAGMA cache_size = 10000;
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure SQLite settings: %w", err)
 	}
+
+	// Configure connection pool for concurrency
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(5)
 
 	return &SQLiteRepo{db: db}, nil
 }
 
 // RunMigrations creates the necessary database tables if they do not already exist.
 func (r *SQLiteRepo) RunMigrations() error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
 	query := `
 	CREATE TABLE IF NOT EXISTS messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,31 +71,53 @@ func (r *SQLiteRepo) RunMigrations() error {
 		PRIMARY KEY (consumer_name, queue_name, message_id)
 	);
 	`
-	_, err := r.db.Exec(query)
+	_, err = tx.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // AddMessage inserts a new message into the specified queue.
 func (r *SQLiteRepo) AddMessage(queueName string, message MessageModel) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
 	query := `
 	INSERT INTO messages (queue_name, event_type, message_payload)
 	VALUES (?, ?, ?);
 	`
-	_, err := r.db.Exec(query, queueName, message.EventType, message.MessagePayload)
+	_, err = tx.Exec(query, queueName, message.EventType, message.MessagePayload)
 	if err != nil {
 		return fmt.Errorf("failed to add message: %w", err)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // GetMessage retrieves the next available message for a consumer from the specified queue.
 // It also updates the consumer's cursor to the retrieved message's ID.
 func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return MessageModel{}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
 	var cursor int64
-	err := r.db.QueryRow(`
+	err = tx.QueryRow(`
 	SELECT cursor FROM consumer_cursors
 	WHERE consumer_name = ? AND queue_name = ?;
 	`, consumerName, queueName).Scan(&cursor)
@@ -88,7 +126,7 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	}
 
 	var unackedMessageId int64
-	err = r.db.QueryRow(`
+	err = tx.QueryRow(`
 	SELECT id FROM messages
 	WHERE queue_name = ?
 	AND id NOT IN (
@@ -107,7 +145,7 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	}
 
 	var msg MessageModel
-	err = r.db.QueryRow(`
+	err = tx.QueryRow(`
 	SELECT id, event_type, message_payload
 	FROM messages
 	WHERE queue_name = ? AND id >= ?
@@ -120,12 +158,16 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	`, queueName, cursor, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			err = tx.Rollback()
+			if err != nil {
+				return MessageModel{}, fmt.Errorf("failed to rollback transaction: %w", err)
+			}
 			return MessageModel{}, nil // No new messages
 		}
 		return MessageModel{}, fmt.Errorf("failed to get message: %w", err)
 	}
 
-	_, err = r.db.Exec(`
+	_, err = tx.Exec(`
 	INSERT INTO consumer_cursors (consumer_name, queue_name, cursor)
 	VALUES (?, ?, ?)
 	ON CONFLICT(consumer_name) DO UPDATE SET cursor = excluded.cursor;
@@ -134,12 +176,26 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 		return MessageModel{}, fmt.Errorf("failed to update consumer cursor: %w", err)
 	}
 
+	if err = tx.Commit(); err != nil {
+		return MessageModel{}, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return msg, nil
 }
 
 // AckMessage acknowledges the processing of a message by a consumer.
 func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64) error {
-	_, err := r.db.Exec(`
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	_, err = tx.Exec(`
 	INSERT INTO acks (consumer_name, queue_name, message_id)
 	VALUES (?, ?, ?)
 	ON CONFLICT DO NOTHING;
@@ -147,5 +203,6 @@ func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64)
 	if err != nil {
 		return fmt.Errorf("failed to acknowledge message: %w", err)
 	}
-	return nil
+
+	return tx.Commit()
 }

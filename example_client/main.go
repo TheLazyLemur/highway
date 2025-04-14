@@ -11,19 +11,18 @@ import (
 
 type Person struct {
 	Name string `json:"name"`
+	Age  int    `json:"age"`
 }
 
-func ConsumerHandler() func(id int64, eventType string, pl string) error {
-	return func(id int64, eventType string, pl string) error {
-		var person Person
-		err := json.Unmarshal([]byte(pl), &person)
-		if err != nil {
-			return err
-		}
-		fmt.Println(person)
-
-		return nil
+func ConsumerHandler(id int64, eventType string, pl string) error {
+	var person Person
+	err := json.Unmarshal([]byte(pl), &person)
+	if err != nil {
+		return err
 	}
+	fmt.Println(person)
+
+	return nil
 }
 
 func main() {
@@ -32,14 +31,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	consumerClient.Consume(ConsumerHandler())
+	consumerClient.Consume(ConsumerHandler)
 
 	cl := client.NewClient("test_queue", "test_producer")
 	cl.ConnectAsProducer()
 	count := 1
 	for {
-		cl.Push("test_event", map[string]string{
+		cl.Push("test_event", map[string]any{
 			"name": fmt.Sprintf("Daniel %d", count),
+			"age":  30,
 		})
 		count++
 		time.Sleep(time.Second * 1)

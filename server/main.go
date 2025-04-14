@@ -24,7 +24,6 @@ func main() {
 	port := os.Getenv("PORT")
 	DbUrl := os.Getenv("DB_URL")
 
-	// Create context for coordinating shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -36,10 +35,7 @@ func main() {
 
 	slog.Info("Server started", "port", port)
 
-	repo, err := repo.NewSQLiteRepo(DbUrl)
-	if err != nil {
-		log.Fatal(err)
-	}
+	repo, _ := repo.NewSQLiteRepo(DbUrl)
 
 	repo.RunMigrations()
 	service := ops.NewService(repo)
