@@ -14,8 +14,8 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"highway/server/ops"
-	"highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/ops"
+	"github.com/TheLazyLemur/highway/server/repo"
 )
 
 func main() {

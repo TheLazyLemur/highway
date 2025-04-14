@@ -6,8 +6,8 @@ import (
 	"io"
 	"log/slog"
 
-	"highway/server/repo"
-	"highway/server/types"
+	"github.com/TheLazyLemur/highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/types"
 )
 
 func handlePush(

@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"highway/server/repo"
-	"highway/server/types"
+	"github.com/TheLazyLemur/highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/types"
 )
 
 func createTestInitMessage(role types.Role, queueName, name string) types.Message {

@@ -3,8 +3,8 @@ package ops
 import (
 	"encoding/json"
 
-	"highway/server/repo"
-	"highway/server/types"
+	"github.com/TheLazyLemur/highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/types"
 )
 
 func handleConsume(

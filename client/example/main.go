@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"highway/client"
+	"github.com/TheLazyLemur/highway/client"
 )
 
 type Person struct {

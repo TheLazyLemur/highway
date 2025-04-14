@@ -3,7 +3,7 @@ package ops
 import (
 	"errors"
 
-	"highway/server/types"
+	"github.com/TheLazyLemur/highway/server/types"
 )
 
 const (

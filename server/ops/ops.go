@@ -10,8 +10,8 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"highway/server/repo"
-	"highway/server/types"
+	"github.com/TheLazyLemur/highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/types"
 )
 
 func mapToStruct[T any](data map[string]any) (T, error) {
