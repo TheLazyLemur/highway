@@ -8,13 +8,16 @@ import (
 	"time"
 )
 
+type handlerFunc func(id int64, eventType string, pl string) error
+
 type Client struct {
-	conn         net.Conn
-	queueName    string
-	consumerName string
-	encoder      *json.Encoder
-	decoder      *json.Decoder
-	uri          string
+	conn            net.Conn
+	queueName       string
+	consumerName    string
+	encoder         *json.Encoder
+	decoder         *json.Decoder
+	uri             string
+	routeToHandlers map[string][]handlerFunc
 }
 
 func NewClient(uri string, queueName string, consumerName string) *Client {
@@ -98,7 +101,75 @@ func (c *Client) Push(eventType string, payload any) error {
 	return nil
 }
 
-func (c *Client) Consume(cb func(id int64, eventType string, pl string) error) {
+func (c *Client) RegisterHandler(
+	route string,
+	handler handlerFunc,
+) {
+	if c.routeToHandlers == nil {
+		c.routeToHandlers = make(map[string][]handlerFunc)
+	}
+
+	c.routeToHandlers[route] = append(c.routeToHandlers[route], handler)
+}
+
+func (c *Client) Run() {
+	for {
+		err := c.encoder.Encode(map[string]any{
+			"type": "consume",
+			"message": map[string]any{
+				"queue_name":    c.queueName,
+				"consumer_name": c.consumerName,
+			},
+		})
+		if err != nil {
+			if err == io.EOF {
+				slog.Info("Connection closed by server")
+			}
+			return
+		}
+
+		var rawData map[string]any
+		err = c.decoder.Decode(&rawData)
+		if err != nil {
+			if err == io.EOF {
+				slog.Info("Connection closed by server")
+			}
+			return
+		}
+
+		eventType := rawData["EventType"].(string)
+		data := rawData["MessagePayload"].(string)
+		eventID := int64(rawData["Id"].(float64))
+
+		if eventType == "" {
+			continue
+		}
+		time.Sleep(time.Second)
+
+		handlers := c.routeToHandlers[eventType]
+
+		// TODO: Think about what to do here
+		for _, hnd := range handlers {
+			err = hnd(eventID, eventType, data)
+			if err != nil {
+				slog.Info("Error in callback:", "error", err.Error())
+				continue
+			}
+		}
+
+		ack := map[string]any{
+			"type": "ack",
+			"message": map[string]any{
+				"message_id":    eventID,
+				"queue_name":    c.queueName,
+				"consumer_name": c.consumerName,
+			},
+		}
+		c.encoder.Encode(ack)
+	}
+}
+
+func (c *Client) Consume(cb handlerFunc) {
 	go func() {
 		for {
 			time.Sleep(time.Second)
