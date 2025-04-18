@@ -2,13 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"log/slog"
-	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -16,6 +12,7 @@ import (
 
 	"github.com/TheLazyLemur/highway/server/ops"
 	"github.com/TheLazyLemur/highway/server/repo"
+	"github.com/TheLazyLemur/highway/server/server"
 )
 
 func main() {
@@ -28,76 +25,39 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	repository, err := repo.NewSQLiteRepo(DbUrl)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Failed to initialize repository", "error", err)
+		os.Exit(1)
 	}
-	defer ln.Close()
 
-	slog.Info("Server started", "port", port)
+	if err := repository.RunMigrations(); err != nil {
+		slog.Error("Failed to run migrations", "error", err)
+		os.Exit(1)
+	}
 
-	repo, _ := repo.NewSQLiteRepo(DbUrl)
+	service := ops.NewService(repository)
 
-	repo.RunMigrations()
-	service := ops.NewService(repo)
+	server := server.NewServer(port, service)
+	if err := server.Start(ctx); err != nil {
+		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
 
-	var wg sync.WaitGroup
+	slog.Info("Shutdown signal received, stopping server...")
 
-	go func() {
-		<-sig
-		slog.Info("Shutdown signal received, stopping server...")
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-		cancel()
-		ln.Close()
-
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer shutdownCancel()
-
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			slog.Info("All connections closed successfully")
-		case <-shutdownCtx.Done():
-			slog.Info("Shutdown timed out, forcing exit")
-		}
-
-		os.Exit(0)
-	}()
-
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			select {
-			case <-ctx.Done():
-				slog.Info("Stopped accepting new connections")
-				wg.Wait() // Wait for ongoing connections to complete
-				return
-			default:
-				slog.Info("Error accepting connection", "error", err.Error())
-				continue
-			}
-		}
-
-		wg.Add(1)
-		go func(c net.Conn, ctx context.Context) {
-			defer wg.Done()
-			_, connCancel := context.WithCancel(ctx)
-
-			go func() {
-				<-ctx.Done()
-				c.SetDeadline(time.Now().Add(10 * time.Second))
-			}()
-
-			defer connCancel()
-			service.HandleNewConnection(c)
-		}(conn, ctx)
+	if err := server.Stop(shutdownCtx); err != nil {
+		slog.Error("Error during server shutdown", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("Server stopped gracefully")
 }
