@@ -1,6 +1,7 @@
-package client
+package highway
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -12,7 +13,6 @@ type handlerFunc func(id int64, eventType string, pl string) error
 
 type Client struct {
 	conn            net.Conn
-	queueName       string
 	consumerName    string
 	encoder         *json.Encoder
 	decoder         *json.Decoder
@@ -20,16 +20,22 @@ type Client struct {
 	routeToHandlers map[string][]handlerFunc
 }
 
-func NewClient(uri string, queueName string, consumerName string) *Client {
+func NewConsumer(uri string, consumerName string) *Client {
 	return &Client{
 		uri:          uri,
-		queueName:    queueName,
 		consumerName: consumerName,
 	}
 }
 
-func (c *Client) ConnectAsConsumer() error {
-	conn, err := net.Dial("tcp", c.uri)
+func NewProducer(uri string) *Client {
+	return &Client{
+		uri: uri,
+	}
+}
+
+func (c *Client) ConnectAsConsumer(ctx context.Context) error {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", c.uri)
 	if err != nil {
 		return err
 	}
@@ -54,8 +60,9 @@ func (c *Client) ConnectAsConsumer() error {
 	return nil
 }
 
-func (c *Client) ConnectAsProducer() error {
-	conn, err := net.Dial("tcp", c.uri)
+func (c *Client) ConnectAsProducer(ctx context.Context) error {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", c.uri)
 	if err != nil {
 		return err
 	}
@@ -80,25 +87,31 @@ func (c *Client) ConnectAsProducer() error {
 	return nil
 }
 
-func (c *Client) Push(eventType string, payload any) error {
+func (c *Client) Push(queueName string, eventType string, payload any) (map[string]any, error) {
 	pload, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = c.encoder.Encode(map[string]any{
 		"type": "push",
 		"message": map[string]any{
 			"event_type":      eventType,
-			"queue_name":      c.queueName,
+			"queue_name":      queueName,
 			"message_payload": string(pload),
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	var resp map[string]any
+	err = c.decoder.Decode(&resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func (c *Client) RegisterHandler(
@@ -112,12 +125,12 @@ func (c *Client) RegisterHandler(
 	c.routeToHandlers[route] = append(c.routeToHandlers[route], handler)
 }
 
-func (c *Client) Run() {
+func (c *Client) Run(queueName string) error {
 	for {
 		err := c.encoder.Encode(map[string]any{
 			"type": "consume",
 			"message": map[string]any{
-				"queue_name":    c.queueName,
+				"queue_name":    queueName,
 				"consumer_name": c.consumerName,
 			},
 		})
@@ -125,7 +138,7 @@ func (c *Client) Run() {
 			if err == io.EOF {
 				slog.Info("Connection closed by server")
 			}
-			return
+			return err
 		}
 
 		var rawData map[string]any
@@ -134,7 +147,7 @@ func (c *Client) Run() {
 			if err == io.EOF {
 				slog.Info("Connection closed by server")
 			}
-			return
+			return err
 		}
 
 		eventType := rawData["EventType"].(string)
@@ -144,7 +157,7 @@ func (c *Client) Run() {
 		if eventType == "" {
 			continue
 		}
-		time.Sleep(time.Second)
+		// time.Sleep(time.Millisecond * 200)
 
 		handlers := c.routeToHandlers[eventType]
 
@@ -161,7 +174,7 @@ func (c *Client) Run() {
 			"type": "ack",
 			"message": map[string]any{
 				"message_id":    eventID,
-				"queue_name":    c.queueName,
+				"queue_name":    queueName,
 				"consumer_name": c.consumerName,
 			},
 		}
@@ -169,14 +182,14 @@ func (c *Client) Run() {
 	}
 }
 
-func (c *Client) Consume(cb handlerFunc) {
+func (c *Client) Consume(queueName string, cb handlerFunc) {
 	go func() {
 		for {
 			time.Sleep(time.Second)
 			err := c.encoder.Encode(map[string]any{
 				"type": "consume",
 				"message": map[string]any{
-					"queue_name":    c.queueName,
+					"queue_name":    queueName,
 					"consumer_name": c.consumerName,
 				},
 			})
@@ -214,7 +227,7 @@ func (c *Client) Consume(cb handlerFunc) {
 				"type": "ack",
 				"message": map[string]any{
 					"message_id":    eventID,
-					"queue_name":    c.queueName,
+					"queue_name":    queueName,
 					"consumer_name": c.consumerName,
 				},
 			}
