@@ -36,7 +36,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	service := ops.NewService(repository)
+	buffer := ops.NewMessageBuffer(100, 100, repository)
+
+	service := ops.NewService(repository, buffer)
 
 	server := server.NewServer(port, service)
 	if err := server.Start(ctx); err != nil {

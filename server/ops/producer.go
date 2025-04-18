@@ -14,6 +14,7 @@ func handlePush(
 	msg types.Message,
 	connWriter *json.Encoder,
 	dbRepo repo.Repo,
+	buffer *MessageBuffer,
 ) error {
 	data, ok := msg.Message.(map[string]any)
 	if !ok {
@@ -27,15 +28,13 @@ func handlePush(
 		return ErrorQueueNameRequired
 	}
 
-	if err := withRetry(5, func() error {
-		return dbRepo.AddMessage(
-			pushMessage.QueueName,
-			repo.MessageModel{
-				EventType:      pushMessage.EventType,
-				MessagePayload: pushMessage.MessagePayload,
-			},
-		)
-	}); err != nil {
+	if err := buffer.AddMessage(
+		pushMessage.QueueName,
+		repo.MessageModel{
+			EventType:      pushMessage.EventType,
+			MessagePayload: pushMessage.MessagePayload,
+		},
+	); err != nil {
 		return err
 	}
 

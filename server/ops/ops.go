@@ -44,12 +44,14 @@ func getRawMessage(connReader *json.Decoder) (types.Message, error) {
 }
 
 type Service struct {
-	repo repo.Repo
+	repo   repo.Repo
+	buffer *MessageBuffer
 }
 
-func NewService(repo repo.Repo) *Service {
+func NewService(repo repo.Repo, buffer *MessageBuffer) *Service {
 	return &Service{
-		repo: repo,
+		repo:   repo,
+		buffer: buffer,
 	}
 }
 
@@ -158,7 +160,7 @@ func (s *Service) handleProducerMessages(
 
 		switch msg.Action {
 		case Push:
-			if err := handlePush(msg, connWriter, s.repo); err != nil {
+			if err := handlePush(msg, connWriter, s.repo, s.buffer); err != nil {
 				return err
 			}
 		default:

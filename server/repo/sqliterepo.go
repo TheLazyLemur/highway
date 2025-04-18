@@ -206,3 +206,43 @@ func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64)
 
 	return tx.Commit()
 }
+
+// AddMessages inserts multiple messages into the specified queue in a single transaction.
+func (r *SQLiteRepo) AddMessages(messages []MessageModelWithQueue) error {
+	if len(messages) == 0 {
+		return nil // Nothing to do
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	query := `
+	INSERT INTO messages (queue_name, event_type, message_payload)
+	VALUES (?, ?, ?);
+	`
+	stmt, err := tx.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, message := range messages {
+		_, err = stmt.Exec(
+			message.QueueName,
+			message.Message.EventType,
+			message.Message.MessagePayload,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to add message: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}

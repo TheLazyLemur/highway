@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -28,7 +29,7 @@ func TestInitConnectionConsumerBasic(t *testing.T) {
 	msg := createTestInitMessage("consumer", "test-queue", "consumer-1")
 	decoder := json.NewDecoder(bytes.NewBufferString(""))
 
-	svc := NewService(nil)
+	svc := NewService(nil, nil)
 	err := svc.initConnection(msg, decoder, nil)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -88,7 +89,7 @@ func TestInitConnectionConsumerInvalidInputs(t *testing.T) {
 
 			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
-			svc := NewService(nil)
+			svc := NewService(nil, nil)
 			err := svc.initConnection(msg, decoder, nil)
 			assert.True(t, errors.Is(err, tt.expectError))
 		})
@@ -102,7 +103,7 @@ func TestInitConnectionProducerBasic(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	svc := NewService(nil)
+	svc := NewService(nil, nil)
 	err := svc.initConnection(msg, decoder, encoder)
 	assert.NoError(t, err)
 }
@@ -145,7 +146,7 @@ func TestInitConnectionVariousScenarios(t *testing.T) {
 			msg := createTestInitMessage(tt.role, "", "")
 			decoder := json.NewDecoder(bytes.NewBufferString(tt.input))
 
-			svc := NewService(nil)
+			svc := NewService(nil, nil)
 			err := svc.initConnection(msg, decoder, nil)
 			assert.True(t, errors.Is(err, tt.expectError))
 		})
@@ -187,7 +188,8 @@ func TestProducerPushMessage(t *testing.T) {
 
 	r, _ := repo.NewSQLiteRepo(":memory:")
 	r.RunMigrations()
-	svc := NewService(r)
+	b := NewMessageBuffer(1, 100, r)
+	svc := NewService(r, b)
 
 	err := svc.handleProducerMessages(decoder, encoder)
 	assert.NoError(t, err)
@@ -207,6 +209,8 @@ func TestProducerPushMessage(t *testing.T) {
 			"response": "pushed message to queue test-queue with type test_event with payload payload",
 		}, result)
 	}
+
+	time.Sleep(2 * time.Second)
 
 	msg, err := r.GetMessage("test-queue", "test-consumer")
 	r.AckMessage("test-queue", "test-consumer", 1)
@@ -237,6 +241,7 @@ func TestProducerPushMessage(t *testing.T) {
 func TestConsumerRetrieveMessage(t *testing.T) {
 	r, _ := repo.NewSQLiteRepo(":memory:")
 	r.RunMigrations()
+	b := NewMessageBuffer(2, 1, r)
 
 	r.AddMessage("test_queue", repo.MessageModel{
 		Id:             1,
@@ -256,7 +261,7 @@ func TestConsumerRetrieveMessage(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	svc := NewService(r)
+	svc := NewService(r, b)
 	svc.handleConsumerMessages(decoder, encoder)
 
 	var result map[string]any
@@ -272,6 +277,7 @@ func TestConsumerRetrieveMessage(t *testing.T) {
 func TestConsumerNoMessagesAvailable(t *testing.T) {
 	r, _ := repo.NewSQLiteRepo(":memory:")
 	r.RunMigrations()
+	b := NewMessageBuffer(2, 1, r)
 	input := `{
 		"type": "consume",
 		"message": {
@@ -284,7 +290,7 @@ func TestConsumerNoMessagesAvailable(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	svc := NewService(r)
+	svc := NewService(r, b)
 	svc.handleConsumerMessages(decoder, encoder)
 
 	var result map[string]any
@@ -300,6 +306,7 @@ func TestConsumerNoMessagesAvailable(t *testing.T) {
 func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 	r, _ := repo.NewSQLiteRepo(":memory:")
 	r.RunMigrations()
+	b := NewMessageBuffer(2, 1, r)
 
 	r.AddMessage("test_queue", repo.MessageModel{
 		Id:             1,
@@ -342,7 +349,7 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 
-	svc := NewService(r)
+	svc := NewService(r, b)
 	svc.handleConsumerMessages(decoder, encoder)
 
 	testDec := json.NewDecoder(&output)
