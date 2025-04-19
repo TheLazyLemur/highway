@@ -13,7 +13,6 @@ import (
 func handlePush(
 	msg types.Message,
 	connWriter *json.Encoder,
-	dbRepo repo.Repo,
 	buffer *MessageBuffer,
 ) error {
 	data, ok := msg.Message.(map[string]any)

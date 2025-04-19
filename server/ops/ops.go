@@ -160,7 +160,7 @@ func (s *Service) handleProducerMessages(
 
 		switch msg.Action {
 		case Push:
-			if err := handlePush(msg, connWriter, s.repo, s.buffer); err != nil {
+			if err := handlePush(msg, connWriter, s.buffer); err != nil {
 				return err
 			}
 		default:
