@@ -31,3 +31,8 @@ type AckMessage struct {
 	ConsumerName string `json:"consumer_name"`
 	MessageId    int64  `json:"message_id"`
 }
+
+type PeekMessage struct {
+	QueueName    string `json:"queue_name"`
+	ConsumerName string `json:"consumer_name"`
+}

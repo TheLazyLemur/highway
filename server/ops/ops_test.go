@@ -372,3 +372,47 @@ func TestConsumerMultipleRequestsWithInsufficientMessages(t *testing.T) {
 		"MessagePayload": "",
 	}, result2)
 }
+
+func TestPeekMessage(t *testing.T) {
+	r, _ := repo.NewSQLiteRepo(":memory:")
+	r.RunMigrations()
+
+	r.AddMessage("test_queue", repo.MessageModel{
+		Id:             1,
+		EventType:      "test_event",
+		MessagePayload: "payload_1",
+	})
+
+	r.AddMessage("test_queue", repo.MessageModel{
+		Id:             2,
+		EventType:      "test_event",
+		MessagePayload: "payload_2",
+	})
+
+	input := `{
+		"type": "peek",
+		"message": {
+			"queue_name": "test_queue",
+			"consumer_name": "test_consumer"
+		}
+	}`
+	decoder := json.NewDecoder(strings.NewReader(input))
+
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+
+	svc := NewService(r, nil)
+	svc.handleConsumerMessages(decoder, encoder)
+
+	var result map[string]any
+	err := json.Unmarshal(output.Bytes(), &result)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"message": map[string]any{
+			"id":              float64(1),
+			"event_type":      "test_event",
+			"message_payload": "payload_1",
+		},
+		"type": "peek",
+	}, result)
+}

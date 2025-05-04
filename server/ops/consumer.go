@@ -2,6 +2,8 @@ package ops
 
 import (
 	"encoding/json"
+	"fmt"
+	"log/slog"
 
 	"github.com/TheLazyLemur/highway/server/repo"
 	"github.com/TheLazyLemur/highway/server/types"
@@ -65,4 +67,58 @@ func handleAck(input types.Message, dbRepo repo.Repo) error {
 		)
 	})
 	return err
+}
+
+func handlePeek(msg types.Message, connWriter *json.Encoder, repo repo.Repo) error {
+	rawMessage, ok := msg.Message.(map[string]any)
+	if !ok {
+		slog.Error("Invalid message format for peek operation")
+		return ErrorInvalidDataShape
+	}
+
+	peekMsg, err := mapToStruct[types.PeekMessage](rawMessage)
+	if err != nil {
+		return err
+	}
+
+	if peekMsg.QueueName == "" {
+		return ErrorQueueNameRequired
+	}
+
+	if peekMsg.ConsumerName == "" {
+		return ErrorConsumerNameRequired
+	}
+
+	// Get the message without updating cursor
+	message, err := repo.PeekMessage(peekMsg.QueueName, peekMsg.ConsumerName)
+	if err != nil {
+		return fmt.Errorf("failed to peek message: %w", err)
+	}
+
+	// If there's no message, return an empty response
+	if message.Id == 0 {
+		err = connWriter.Encode(types.Message{
+			Action:  Peek,
+			Message: nil,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to send empty peek response: %w", err)
+		}
+		return nil
+	}
+
+	// Send the message back to the client
+	err = connWriter.Encode(types.Message{
+		Action: Peek,
+		Message: map[string]any{
+			"id":              message.Id,
+			"event_type":      message.EventType,
+			"message_payload": message.MessagePayload,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send peek response: %w", err)
+	}
+
+	return nil
 }

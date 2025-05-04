@@ -16,6 +16,7 @@ const (
 	Push    types.Action = "push"
 	Consume types.Action = "consume"
 	Ack     types.Action = "ack"
+	Peek    types.Action = "peek"
 )
 
 var (

@@ -5,6 +5,7 @@ type Repo interface {
 	AddMessages(messages []MessageModelWithQueue) error
 	GetMessage(queueName, consumerName string) (MessageModel, error)
 	AckMessage(queueName, consumerName string, messageId int64) error
+	PeekMessage(queueName, consumerName string) (MessageModel, error)
 }
 
 type MessageModel struct {
@@ -17,3 +18,4 @@ type MessageModelWithQueue struct {
 	QueueName string
 	Message   MessageModel
 }
+

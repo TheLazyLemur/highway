@@ -183,6 +183,67 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 	return msg, nil
 }
 
+// PeekMessage retrieves the next available message for a consumer from the specified queue
+// without updating the consumer's cursor.
+func (r *SQLiteRepo) PeekMessage(queueName, consumerName string) (MessageModel, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return MessageModel{}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var cursor int64
+	err = tx.QueryRow(`
+	SELECT cursor FROM consumer_cursors
+	WHERE consumer_name = ? AND queue_name = ?;
+	`, consumerName, queueName).Scan(&cursor)
+	if err != nil && err != sql.ErrNoRows {
+		return MessageModel{}, fmt.Errorf("failed to get consumer cursor: %w", err)
+	}
+
+	var unackedMessageId int64
+	err = tx.QueryRow(`
+	SELECT id FROM messages
+	WHERE queue_name = ?
+	AND id NOT IN (
+		SELECT message_id FROM acks
+		WHERE consumer_name = ? AND queue_name = ?
+	)
+	ORDER BY id ASC
+	LIMIT 1;
+	`, queueName, consumerName, queueName).Scan(&unackedMessageId)
+	if err != nil && err != sql.ErrNoRows {
+		return MessageModel{}, fmt.Errorf("failed to check for unacknowledged messages: %w", err)
+	}
+
+	if err != sql.ErrNoRows && unackedMessageId < cursor {
+		cursor = unackedMessageId
+	}
+
+	var msg MessageModel
+	err = tx.QueryRow(`
+	SELECT id, event_type, message_payload
+	FROM messages
+	WHERE queue_name = ? AND id >= ?
+	AND id NOT IN (
+		SELECT message_id FROM acks
+		WHERE consumer_name = ? AND queue_name = ?
+	)
+	ORDER BY id ASC
+	LIMIT 1;
+	`, queueName, cursor, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return MessageModel{}, nil // No new messages
+		}
+		return MessageModel{}, fmt.Errorf("failed to peek message: %w", err)
+	}
+
+	// Note: We do NOT update the cursor for a peek operation
+
+	return msg, nil
+}
+
 // AckMessage acknowledges the processing of a message by a consumer.
 func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64) error {
 	tx, err := r.db.Begin()
@@ -246,3 +307,4 @@ func (r *SQLiteRepo) AddMessages(messages []MessageModelWithQueue) error {
 
 	return tx.Commit()
 }
+

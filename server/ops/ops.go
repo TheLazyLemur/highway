@@ -193,6 +193,11 @@ func (s *Service) handleConsumerMessages(
 				slog.Error("Failed to acknowledge message", "error", err.Error())
 				return err
 			}
+		case Peek:
+			if err := handlePeek(msg, connWriter, s.repo); err != nil {
+				slog.Error("Failed to process peek request", "error", err.Error())
+				return err
+			}
 		default:
 			return ErrorInvalidAction
 		}
