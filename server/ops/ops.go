@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/TheLazyLemur/highway/server/cache"
 	"github.com/TheLazyLemur/highway/server/repo"
 	"github.com/TheLazyLemur/highway/server/types"
 )
@@ -48,12 +49,14 @@ func getRawMessage(connReader *json.Decoder) (types.Message, error) {
 type Service struct {
 	repo   repo.Repo
 	buffer *MessageBuffer
+	cache  cache.Cache
 }
 
-func NewService(repo repo.Repo, buffer *MessageBuffer) *Service {
+func NewService(repo repo.Repo, cacheInstance *cache.MemoryCache, buffer *MessageBuffer) *Service {
 	return &Service{
 		repo:   repo,
 		buffer: buffer,
+		cache:  cacheInstance,
 	}
 }
 
@@ -133,13 +136,18 @@ func (s *Service) initConnection(
 			slog.Error("Consumer message handling failed", "error", err.Error())
 			return err
 		}
+	case Cache:
+		if err := s.handleCacheMessages(decoder, encoder); err != nil {
+			slog.Error("Cache message handling failed", "error", err.Error())
+			return err
+		}
 	default:
 		slog.Error(
 			"Client specified invalid role in initialization",
 			"role",
 			initMsg.Role,
 			"valid_roles",
-			"Producer,Consumer",
+			"Producer,Consumer,Cache",
 		)
 		return ErrorInvalidRole
 	}
@@ -163,6 +171,52 @@ func (s *Service) handleProducerMessages(
 		switch msg.Action {
 		case Push:
 			if err := handlePush(msg, connWriter, s.buffer); err != nil {
+				return err
+			}
+		case CacheSet, CacheGet, CacheDelete, CacheClear:
+			if err := s.handleCacheOperation(msg, connWriter); err != nil {
+				return err
+			}
+		default:
+			return ErrorInvalidAction
+		}
+	}
+}
+
+// handleCacheOperation dispatches to the appropriate cache handler based on the message action
+func (s *Service) handleCacheOperation(msg types.Message, connWriter *json.Encoder) error {
+	switch msg.Action {
+	case CacheSet:
+		return handleCacheSet(s.cache, msg, connWriter)
+	case CacheGet:
+		return handleCacheGet(s.cache, msg, connWriter)
+	case CacheDelete:
+		return handleCacheDelete(s.cache, msg, connWriter)
+	case CacheClear:
+		return handleCacheClear(s.cache, msg, connWriter)
+	default:
+		return ErrorInvalidAction
+	}
+}
+
+// handleCacheMessages handles messages for clients that connect specifically as cache clients
+func (s *Service) handleCacheMessages(
+	connReader *json.Decoder,
+	connWriter *json.Encoder,
+) error {
+	for {
+		msg, err := getRawMessage(connReader)
+		if err != nil {
+			if errors.Is(err, ErrorConnectionClosed) {
+				return nil
+			}
+			return err
+		}
+
+		switch msg.Action {
+		case CacheSet, CacheGet, CacheDelete, CacheClear:
+			if err := s.handleCacheOperation(msg, connWriter); err != nil {
+				slog.Error("Failed to process cache operation", "error", err.Error())
 				return err
 			}
 		default:
@@ -198,6 +252,10 @@ func (s *Service) handleConsumerMessages(
 		case Peek:
 			if err := handlePeek(msg, connWriter, s.repo); err != nil {
 				slog.Error("Failed to process peek request", "error", err.Error())
+				return err
+			}
+		case CacheSet, CacheGet, CacheDelete, CacheClear:
+			if err := s.handleCacheOperation(msg, connWriter); err != nil {
 				return err
 			}
 		default:

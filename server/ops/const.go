@@ -9,14 +9,19 @@ import (
 const (
 	Producer types.Role = "producer"
 	Consumer types.Role = "consumer"
+	Cache    types.Role = "cache"
 )
 
 const (
-	Init    types.Action = "init"
-	Push    types.Action = "push"
-	Consume types.Action = "consume"
-	Ack     types.Action = "ack"
-	Peek    types.Action = "peek"
+	Init        types.Action = "init"
+	Push        types.Action = "push"
+	Consume     types.Action = "consume"
+	Ack         types.Action = "ack"
+	Peek        types.Action = "peek"
+	CacheSet    types.Action = "cache_set"
+	CacheGet    types.Action = "cache_get"
+	CacheDelete types.Action = "cache_delete"
+	CacheClear  types.Action = "cache_clear"
 )
 
 var (
@@ -29,4 +34,7 @@ var (
 	ErrorMarshalData          = errors.New("failed to marshal data")
 	ErrorQueueNameRequired    = errors.New("queue name is required")
 	ErrorUnmarshalData        = errors.New("failed to unmarshal data")
+	ErrorCacheKeyRequired     = errors.New("cache key is required")
+	ErrorCacheValueRequired   = errors.New("cache value is required")
+	ErrorCacheKeyNotFound     = errors.New("cache key not found")
 )

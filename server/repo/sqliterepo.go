@@ -125,6 +125,7 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 		return MessageModel{}, fmt.Errorf("failed to get consumer cursor: %w", err)
 	}
 
+	// Find the lowest unacknowledged message for this consumer
 	var unackedMessageId int64
 	err = tx.QueryRow(`
 	SELECT id FROM messages
@@ -140,22 +141,25 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 		return MessageModel{}, fmt.Errorf("failed to check for unacknowledged messages: %w", err)
 	}
 
+	// If there's an unacknowledged message with ID lower than the cursor,
+	// use that as the starting point
 	if err != sql.ErrNoRows && unackedMessageId < cursor {
 		cursor = unackedMessageId
 	}
 
+	// Get the next unacknowledged message for this specific consumer
 	var msg MessageModel
 	err = tx.QueryRow(`
 	SELECT id, event_type, message_payload
 	FROM messages
-	WHERE queue_name = ? AND id >= ?
+	WHERE queue_name = ? 
 	AND id NOT IN (
 		SELECT message_id FROM acks
 		WHERE consumer_name = ? AND queue_name = ?
 	)
 	ORDER BY id ASC
 	LIMIT 1;
-	`, queueName, cursor, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
+	`, queueName, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = tx.Rollback()
@@ -167,6 +171,7 @@ func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, e
 		return MessageModel{}, fmt.Errorf("failed to get message: %w", err)
 	}
 
+	// Update the consumer's cursor to the message's ID
 	_, err = tx.Exec(`
 	INSERT INTO consumer_cursors (consumer_name, queue_name, cursor)
 	VALUES (?, ?, ?)
@@ -220,18 +225,19 @@ func (r *SQLiteRepo) PeekMessage(queueName, consumerName string) (MessageModel, 
 		cursor = unackedMessageId
 	}
 
+	// Get the next unacknowledged message for this specific consumer
 	var msg MessageModel
 	err = tx.QueryRow(`
 	SELECT id, event_type, message_payload
 	FROM messages
-	WHERE queue_name = ? AND id >= ?
+	WHERE queue_name = ? 
 	AND id NOT IN (
 		SELECT message_id FROM acks
 		WHERE consumer_name = ? AND queue_name = ?
 	)
 	ORDER BY id ASC
 	LIMIT 1;
-	`, queueName, cursor, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
+	`, queueName, consumerName, queueName).Scan(&msg.Id, &msg.EventType, &msg.MessagePayload)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return MessageModel{}, nil // No new messages
@@ -307,4 +313,3 @@ func (r *SQLiteRepo) AddMessages(messages []MessageModelWithQueue) error {
 
 	return tx.Commit()
 }
-

@@ -36,3 +36,27 @@ type PeekMessage struct {
 	QueueName    string `json:"queue_name"`
 	ConsumerName string `json:"consumer_name"`
 }
+
+// Cache operation message types
+type CacheSetMessage struct {
+	Key        string `json:"key"`
+	Value      string `json:"value"`
+	Expiration int64  `json:"expiration"` // Expiration in milliseconds
+}
+
+type CacheGetMessage struct {
+	Key string `json:"key"`
+}
+
+type CacheDeleteMessage struct {
+	Key string `json:"key"`
+}
+
+type CacheClearMessage struct {
+}
+
+type CacheResponse struct {
+	Success bool   `json:"success"`
+	Value   string `json:"value,omitempty"`
+	Error   string `json:"error,omitempty"`
+}

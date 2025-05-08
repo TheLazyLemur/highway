@@ -10,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/TheLazyLemur/highway/server/cache"
 	"github.com/TheLazyLemur/highway/server/ops"
 	"github.com/TheLazyLemur/highway/server/repo"
 	"github.com/TheLazyLemur/highway/server/server"
@@ -38,7 +39,8 @@ func main() {
 
 	buffer := ops.NewMessageBuffer(100, 100, repository)
 
-	service := ops.NewService(repository, buffer)
+	cacheInstance := cache.NewMemoryCache()
+	service := ops.NewService(repository, cacheInstance, buffer)
 
 	server := server.NewServer(port, service)
 	if err := server.Start(ctx); err != nil {
