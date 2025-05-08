@@ -36,11 +36,21 @@ func TransformerHandler[T any](
 ) func(id int64, eventType string, pl string) error {
 	return func(id int64, eventType string, pl string) error {
 		var params T
+		// Attempt to unmarshal the JSON payload into the params variable
 		err := json.Unmarshal([]byte(pl), &params)
 		if err != nil {
-			return err
+			// Log the error for debugging purposes
+			fmt.Printf("Failed to unmarshal payload: %v, error: %v\n", pl, err)
+			return fmt.Errorf("invalid payload format: %w", err)
 		}
-		return handler(id, eventType, params)
+		// Call the provided handler with the unmarshalled params
+		err = handler(id, eventType, params)
+		if err != nil {
+			// Log the error from the handler
+			fmt.Printf("Handler error for event %s: %v\n", eventType, err)
+			return fmt.Errorf("handler error: %w", err)
+		}
+		return nil
 	}
 }
 

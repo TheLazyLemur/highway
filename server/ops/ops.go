@@ -18,13 +18,13 @@ func mapToStruct[T any](data map[string]any) (T, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		var zero T
-		return zero, fmt.Errorf("%w: %v", ErrorMarshalData, err)
+		return zero, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
 	var result T
 	err = json.Unmarshal(b, &result)
 	if err != nil {
-		return result, fmt.Errorf("%w into %T: %v", ErrorUnmarshalData, result, err)
+		return result, fmt.Errorf("failed to unmarshal into %T: %w", result, err)
 	}
 	return result, nil
 }
@@ -37,9 +37,11 @@ func getRawMessage(connReader *json.Decoder) (types.Message, error) {
 			slog.Error("Connection closed unexpectedly by client", "cause", "EOF")
 			return types.Message{}, ErrorConnectionClosed
 		}
-		return types.Message{}, err
+		slog.Error("Failed to decode message", "error", err)
+		return types.Message{}, fmt.Errorf("failed to decode message: %w", err)
 	}
 
+	slog.Info("Successfully decoded message", "message", msg)
 	return msg, nil
 }
 
