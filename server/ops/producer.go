@@ -1,7 +1,6 @@
 package ops
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,7 +11,7 @@ import (
 
 func handlePush(
 	msg types.Message,
-	connWriter *json.Encoder,
+	connWriter MessageEncoder,
 	buffer *MessageBuffer,
 ) error {
 	data, ok := msg.Message.(map[string]any)

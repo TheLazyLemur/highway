@@ -30,7 +30,7 @@ func mapToStruct[T any](data map[string]any) (T, error) {
 	return result, nil
 }
 
-func getRawMessage(connReader *json.Decoder) (types.Message, error) {
+func getRawMessage(connReader MessageDecoder) (types.Message, error) {
 	var msg types.Message
 	err := connReader.Decode(&msg)
 	if err != nil {
@@ -96,8 +96,8 @@ func (s *Service) HandleNewConnection(conn net.Conn) {
 
 func (s *Service) initConnection(
 	msg types.Message,
-	decoder *json.Decoder,
-	encoder *json.Encoder,
+	decoder MessageDecoder,
+	encoder MessageEncoder,
 ) error {
 	rawMessage, ok := msg.Message.(map[string]any)
 	if !ok {
@@ -156,8 +156,8 @@ func (s *Service) initConnection(
 }
 
 func (s *Service) handleProducerMessages(
-	connReader *json.Decoder,
-	connWriter *json.Encoder,
+	connReader MessageDecoder,
+	connWriter MessageEncoder,
 ) error {
 	for {
 		msg, err := getRawMessage(connReader)
@@ -184,7 +184,7 @@ func (s *Service) handleProducerMessages(
 }
 
 // handleCacheOperation dispatches to the appropriate cache handler based on the message action
-func (s *Service) handleCacheOperation(msg types.Message, connWriter *json.Encoder) error {
+func (s *Service) handleCacheOperation(msg types.Message, connWriter MessageEncoder) error {
 	switch msg.Action {
 	case CacheSet:
 		return handleCacheSet(s.cache, msg, connWriter)
@@ -201,8 +201,8 @@ func (s *Service) handleCacheOperation(msg types.Message, connWriter *json.Encod
 
 // handleCacheMessages handles messages for clients that connect specifically as cache clients
 func (s *Service) handleCacheMessages(
-	connReader *json.Decoder,
-	connWriter *json.Encoder,
+	connReader MessageDecoder,
+	connWriter MessageEncoder,
 ) error {
 	for {
 		msg, err := getRawMessage(connReader)
@@ -226,8 +226,8 @@ func (s *Service) handleCacheMessages(
 }
 
 func (s *Service) handleConsumerMessages(
-	connReader *json.Decoder,
-	connWriter *json.Encoder,
+	connReader MessageDecoder,
+	connWriter MessageEncoder,
 ) error {
 	for {
 		msg, err := getRawMessage(connReader)

@@ -235,9 +235,13 @@ func (c *Client) Consume(queueName string, cb handlerFunc) {
 }
 
 // Cache functions
-func (c *Client) CacheSet(key string, value string, expiration time.Duration) (map[string]any, error) {
+func (c *Client) CacheSet(
+	key string,
+	value string,
+	expiration time.Duration,
+) (map[string]any, error) {
 	expirationMs := int64(expiration / time.Millisecond)
-	
+
 	err := c.encoder.Encode(map[string]any{
 		"type": "cache_set",
 		"message": map[string]any{
@@ -301,7 +305,7 @@ func (c *Client) CacheDelete(key string) (map[string]any, error) {
 
 func (c *Client) CacheClear() (map[string]any, error) {
 	err := c.encoder.Encode(map[string]any{
-		"type": "cache_clear",
+		"type":    "cache_clear",
 		"message": map[string]any{},
 	})
 	if err != nil {

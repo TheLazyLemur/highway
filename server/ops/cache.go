@@ -1,7 +1,6 @@
 package ops
 
 import (
-	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -9,7 +8,7 @@ import (
 	"github.com/TheLazyLemur/highway/server/types"
 )
 
-func handleCacheSet(cacheInst cache.Cache, msg types.Message, connWriter *json.Encoder) error {
+func handleCacheSet(cacheInst cache.Cache, msg types.Message, connWriter MessageEncoder) error {
 	if cacheInst == nil {
 		slog.Error("Cache not initialized")
 		return respondWithError(connWriter, "Cache not initialized")
@@ -56,7 +55,7 @@ func handleCacheSet(cacheInst cache.Cache, msg types.Message, connWriter *json.E
 	return connWriter.Encode(response)
 }
 
-func handleCacheGet(cacheInst cache.Cache, msg types.Message, connWriter *json.Encoder) error {
+func handleCacheGet(cacheInst cache.Cache, msg types.Message, connWriter MessageEncoder) error {
 	if cacheInst == nil {
 		slog.Error("Cache not initialized")
 		return respondWithError(connWriter, "Cache not initialized")
@@ -93,7 +92,7 @@ func handleCacheGet(cacheInst cache.Cache, msg types.Message, connWriter *json.E
 	return connWriter.Encode(response)
 }
 
-func handleCacheDelete(cacheInst cache.Cache, msg types.Message, connWriter *json.Encoder) error {
+func handleCacheDelete(cacheInst cache.Cache, msg types.Message, connWriter MessageEncoder) error {
 	if cacheInst == nil {
 		slog.Error("Cache not initialized")
 		return respondWithError(connWriter, "Cache not initialized")
@@ -131,7 +130,7 @@ func handleCacheDelete(cacheInst cache.Cache, msg types.Message, connWriter *jso
 }
 
 // handleCacheClear handles a request to clear the entire cache
-func handleCacheClear(cacheInst cache.Cache, _ types.Message, connWriter *json.Encoder) error {
+func handleCacheClear(cacheInst cache.Cache, _ types.Message, connWriter MessageEncoder) error {
 	if cacheInst == nil {
 		slog.Error("Cache not initialized")
 		return respondWithError(connWriter, "Cache not initialized")
@@ -152,7 +151,7 @@ func handleCacheClear(cacheInst cache.Cache, _ types.Message, connWriter *json.E
 }
 
 // respondWithError sends an error response back to the client
-func respondWithError(connWriter *json.Encoder, errorMessage string) error {
+func respondWithError(connWriter MessageEncoder, errorMessage string) error {
 	response := types.CacheResponse{
 		Success: false,
 		Error:   errorMessage,

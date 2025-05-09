@@ -1,7 +1,6 @@
 package ops
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -11,7 +10,7 @@ import (
 
 func handleConsume(
 	input types.Message,
-	connWriter *json.Encoder,
+	connWriter MessageEncoder,
 	dbRepo repo.Repo,
 ) error {
 	data, ok := input.Message.(map[string]any)
@@ -69,7 +68,7 @@ func handleAck(input types.Message, dbRepo repo.Repo) error {
 	return err
 }
 
-func handlePeek(msg types.Message, connWriter *json.Encoder, repo repo.Repo) error {
+func handlePeek(msg types.Message, connWriter MessageEncoder, repo repo.Repo) error {
 	rawMessage, ok := msg.Message.(map[string]any)
 	if !ok {
 		slog.Error("Invalid message format for peek operation")
