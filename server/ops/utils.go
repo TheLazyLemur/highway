@@ -2,7 +2,9 @@ package ops
 
 import (
 	"log/slog"
+	"math"
 	"strings"
+	"time"
 )
 
 func withRetry(maxRetries int, operation func() error) error {
@@ -18,7 +20,15 @@ func withRetry(maxRetries int, operation func() error) error {
 			if retryCount >= maxRetries {
 				return err
 			}
-			slog.Error("Retrying operation due to database lock", "attempt", retryCount)
+			backoffDuration := time.Duration(math.Pow(2, float64(retryCount))) * time.Millisecond
+			slog.Error(
+				"Retrying operation due to database lock",
+				"attempt",
+				retryCount,
+				"backoff",
+				backoffDuration,
+			)
+			time.Sleep(backoffDuration)
 			continue
 		} else {
 			return err

@@ -11,6 +11,12 @@ type SQLiteRepo struct {
 	db *sql.DB
 }
 
+// GetDB returns the underlying database connection.
+// This is mainly used for testing purposes.
+func (r *SQLiteRepo) GetDB() *sql.DB {
+	return r.db
+}
+
 // NewSQLiteRepo initializes a new SQLiteRepo instance with the given database path.
 // It configures SQLite settings for performance optimization.
 func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
@@ -20,10 +26,10 @@ func NewSQLiteRepo(dbPath string) (*SQLiteRepo, error) {
 	}
 
 	_, err = db.Exec(`
-	PRAGMA synchronous = OFF;
+	PRAGMA synchronous = NORMAL;
 	PRAGMA journal_mode = WAL;
 	PRAGMA temp_store = MEMORY;
-	PRAGMA busy_timeout = 5000;
+	PRAGMA busy_timeout = 60000;
 	PRAGMA cache_size = 10000;
 	`)
 	if err != nil {
@@ -106,6 +112,16 @@ func (r *SQLiteRepo) AddMessage(queueName string, message MessageModel) error {
 // GetMessage retrieves the next available message for a consumer from the specified queue.
 // It also updates the consumer's cursor to the retrieved message's ID.
 func (r *SQLiteRepo) GetMessage(queueName, consumerName string) (MessageModel, error) {
+	msg, err := r.getMessage(queueName, consumerName)
+	if err != nil {
+		return MessageModel{}, fmt.Errorf("failed to get message: %w", err)
+	}
+
+	return msg, nil
+}
+
+// getMessage is a helper function that handles a single attempt to get a message
+func (r *SQLiteRepo) getMessage(queueName, consumerName string) (MessageModel, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return MessageModel{}, fmt.Errorf("failed to begin transaction: %w", err)
@@ -245,33 +261,33 @@ func (r *SQLiteRepo) PeekMessage(queueName, consumerName string) (MessageModel, 
 		return MessageModel{}, fmt.Errorf("failed to peek message: %w", err)
 	}
 
-	// Note: We do NOT update the cursor for a peek operation
-
 	return msg, nil
 }
 
 // AckMessage acknowledges the processing of a message by a consumer.
 func (r *SQLiteRepo) AckMessage(queueName, consumerName string, messageId int64) error {
+	var err error
+
 	tx, err := r.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
 
 	_, err = tx.Exec(`
-	INSERT INTO acks (consumer_name, queue_name, message_id)
-	VALUES (?, ?, ?)
-	ON CONFLICT DO NOTHING;
-	`, consumerName, queueName, messageId)
+		INSERT INTO acks (consumer_name, queue_name, message_id)
+		VALUES (?, ?, ?)
+		ON CONFLICT DO NOTHING;
+		`, consumerName, queueName, messageId)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("failed to acknowledge message: %w", err)
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit ack transaction: %w", err)
+	}
+
+	return nil // Success
 }
 
 // AddMessages inserts multiple messages into the specified queue in a single transaction.
